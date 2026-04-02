@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dark financial dashboard — deep navy base */
+    --background: 222 47% 5%;
+    --foreground: 210 40% 96%;
+
+    --card: 222 47% 8%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 222 47% 8%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 165 100% 42%;       /* #00d4a1 — profit green */
+    --primary-foreground: 222 47% 5%;
+
+    --secondary: 222 47% 13%;
+    --secondary-foreground: 210 40% 80%;
+
+    --muted: 222 47% 11%;
+    --muted-foreground: 215 20% 50%;
+
+    --accent: 222 47% 15%;
+    --accent-foreground: 210 40% 96%;
+
+    --destructive: 346 100% 65%;   /* #ff4d6d — loss red */
+    --destructive-foreground: 210 40% 96%;
+
+    --border: 222 47% 14%;
+    --input: 222 47% 12%;
+    --ring: 165 100% 42%;
+
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+
+  /* Monospace numbers throughout */
+  .tabular-nums {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /* Profit/Loss colored cells */
+  .cell-profit {
+    @apply text-[#00d4a1] font-mono;
+  }
+  .cell-loss {
+    @apply text-[#ff4d6d] font-mono;
+  }
+  .cell-neutral {
+    @apply text-[#f0b429] font-mono;
+  }
+
+  /* Card with subtle glow */
+  .card-glow-profit {
+    box-shadow: 0 0 20px rgba(0, 212, 161, 0.08);
+  }
+  .card-glow-loss {
+    box-shadow: 0 0 20px rgba(255, 77, 109, 0.08);
+  }
+
+  /* Data table rows */
+  .trade-row {
+    @apply border-b border-border/50 hover:bg-accent/40 transition-colors cursor-pointer;
+  }
+
+  /* Ticker badge */
+  .ticker-badge {
+    @apply font-mono font-medium text-sm px-2 py-0.5 rounded bg-accent border border-border;
+  }
+
+  /* Stat card */
+  .stat-card {
+    @apply rounded-lg border border-border bg-card p-4 flex flex-col gap-1;
+  }
+  .stat-label {
+    @apply text-xs font-medium uppercase tracking-wider text-muted-foreground;
+  }
+  .stat-value {
+    @apply text-2xl font-mono font-medium tabular-nums;
+  }
+
+  /* Grade badge */
+  .grade-badge {
+    @apply inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm font-mono;
+  }
+
+  /* Animate in */
+  .animate-in {
+    @apply animate-fade-in;
+  }
+}
+
+/* Recharts overrides */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: hsl(222 47% 14%);
+}
+.recharts-tooltip-wrapper {
+  outline: none !important;
+}

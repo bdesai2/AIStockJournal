@@ -1,0 +1,210 @@
+import { useEffect, useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { PlusCircle, Search, Filter, ArrowUpDown } from 'lucide-react'
+import { useAuthStore } from '@/store/authStore'
+import { useTradeStore } from '@/store/tradeStore'
+import { TradeRow } from '@/components/trades/TradeRow'
+import type { AssetType, TradeStatus } from '@/types'
+
+type SortKey = 'entry_date' | 'net_pnl' | 'pnl_percent' | 'r_multiple' | 'ticker'
+type SortDir = 'asc' | 'desc'
+
+export function TradesPage() {
+  const navigate = useNavigate()
+  const { user } = useAuthStore()
+  const { trades, loading, fetchTrades } = useTradeStore()
+
+  const [search, setSearch] = useState('')
+  const [assetFilter, setAssetFilter] = useState<AssetType | 'all'>('all')
+  const [statusFilter, setStatusFilter] = useState<TradeStatus | 'all'>('all')
+  const [dirFilter, setDirFilter] = useState<'long' | 'short' | 'all'>('all')
+  const [sortKey, setSortKey] = useState<SortKey>('entry_date')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  useEffect(() => {
+    if (user?.id) fetchTrades(user.id)
+  }, [user?.id, fetchTrades])
+
+  const filtered = useMemo(() => {
+    let result = [...trades]
+
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      result = result.filter(
+        (t) =>
+          t.ticker.toLowerCase().includes(q) ||
+          t.strategy_tags?.some((tag) => tag.includes(q)) ||
+          t.setup_notes?.toLowerCase().includes(q)
+      )
+    }
+    if (assetFilter !== 'all') result = result.filter((t) => t.asset_type === assetFilter)
+    if (statusFilter !== 'all') result = result.filter((t) => t.status === statusFilter)
+    if (dirFilter !== 'all') result = result.filter((t) => t.direction === dirFilter)
+
+    result.sort((a, b) => {
+      let av: number | string = 0
+      let bv: number | string = 0
+      switch (sortKey) {
+        case 'entry_date':
+          av = a.entry_date ?? ''
+          bv = b.entry_date ?? ''
+          break
+        case 'net_pnl':
+          av = a.net_pnl ?? -Infinity
+          bv = b.net_pnl ?? -Infinity
+          break
+        case 'pnl_percent':
+          av = a.pnl_percent ?? -Infinity
+          bv = b.pnl_percent ?? -Infinity
+          break
+        case 'r_multiple':
+          av = a.r_multiple ?? -Infinity
+          bv = b.r_multiple ?? -Infinity
+          break
+        case 'ticker':
+          av = a.ticker
+          bv = b.ticker
+          break
+      }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1
+      if (av > bv) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
+
+    return result
+  }, [trades, search, assetFilter, statusFilter, dirFilter, sortKey, sortDir])
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortKey(key); setSortDir('desc') }
+  }
+
+  const SortBtn = ({ k, label }: { k: SortKey; label: string }) => (
+    <button
+      onClick={() => toggleSort(k)}
+      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+    >
+      {label}
+      <ArrowUpDown className={`w-3 h-3 ${sortKey === k ? 'text-primary' : ''}`} />
+    </button>
+  )
+
+  return (
+    <div className="p-6 space-y-4 animate-in">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-display tracking-wider">TRADES</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {filtered.length} of {trades.length} trades
+          </p>
+        </div>
+        <button
+          onClick={() => navigate('/trades/new')}
+          className="flex items-center gap-2 bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          <PlusCircle className="w-4 h-4" />
+          Log Trade
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 p-4 rounded-lg border border-border bg-card">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search ticker, strategy..."
+            className="w-full bg-input border border-border rounded-md pl-8 pr-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
+
+        <Filter className="w-4 h-4 text-muted-foreground self-center" />
+
+        {/* Asset filter */}
+        {(['all', 'stock', 'option', 'etf', 'crypto'] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setAssetFilter(v)}
+            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              assetFilter === v ? 'bg-primary text-primary-foreground' : 'bg-input border border-border text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {v === 'all' ? 'All Assets' : v.toUpperCase()}
+          </button>
+        ))}
+
+        <div className="w-px bg-border" />
+
+        {/* Status */}
+        {(['all', 'open', 'closed', 'partial'] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setStatusFilter(v)}
+            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              statusFilter === v ? 'bg-accent text-foreground border border-primary/50' : 'bg-input border border-border text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {v.charAt(0).toUpperCase() + v.slice(1)}
+          </button>
+        ))}
+
+        <div className="w-px bg-border" />
+
+        {/* Direction */}
+        {(['all', 'long', 'short'] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setDirFilter(v)}
+            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              dirFilter === v ? 'bg-accent text-foreground border border-primary/50' : 'bg-input border border-border text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {v.charAt(0).toUpperCase() + v.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Table */}
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        {/* Column headers */}
+        <div className="flex items-center gap-4 px-4 py-2 border-b border-border bg-accent/30">
+          <div className="w-7" />
+          <div className="flex-1">
+            <SortBtn k="ticker" label="Ticker / Strategy" />
+          </div>
+          <div className="hidden md:block w-48 text-right">
+            <SortBtn k="entry_date" label="Date / Price" />
+          </div>
+          <div className="hidden lg:block w-16 text-right">
+            <span className="text-xs text-muted-foreground">Qty</span>
+          </div>
+          <div className="w-24 text-right">
+            <SortBtn k="net_pnl" label="P&L" />
+          </div>
+          <div className="hidden lg:block w-16 text-right">
+            <SortBtn k="r_multiple" label="R" />
+          </div>
+        </div>
+
+        {loading && trades.length === 0 ? (
+          <div className="p-8 text-center text-muted-foreground text-sm">Loading...</div>
+        ) : filtered.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-muted-foreground text-sm">No trades match your filters.</p>
+          </div>
+        ) : (
+          filtered.map((trade) => (
+            <TradeRow
+              key={trade.id}
+              trade={trade}
+              onClick={() => navigate(`/trades/${trade.id}`)}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  )
+}

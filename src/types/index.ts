@@ -1,0 +1,199 @@
+// ─── Asset & Trade Types ──────────────────────────────────────────────────────
+
+export type AssetType = 'stock' | 'option' | 'etf' | 'crypto'
+export type TradeDirection = 'long' | 'short'
+export type TradeStatus = 'open' | 'closed' | 'partial'
+export type OptionType = 'call' | 'put'
+export type OptionAction = 'buy' | 'sell'
+
+// ─── Option Leg ───────────────────────────────────────────────────────────────
+
+export interface OptionLeg {
+  id: string
+  action: OptionAction       // buy | sell
+  option_type: OptionType    // call | put
+  strike: number
+  expiration: string         // ISO date
+  contracts: number
+  premium: number            // per contract cost/credit
+  delta?: number
+  iv?: number                // implied volatility %
+}
+
+// ─── Screenshot / Attachment ──────────────────────────────────────────────────
+
+export interface TradeScreenshot {
+  id: string
+  url: string
+  storage_path: string
+  label?: string             // e.g. "Entry chart", "Exit chart"
+  created_at: string
+}
+
+// ─── Strategy Tag ─────────────────────────────────────────────────────────────
+
+export type StrategyTag =
+  | 'breakout'
+  | 'breakdown'
+  | 'trend_follow'
+  | 'mean_reversion'
+  | 'gap_fill'
+  | 'earnings_play'
+  | 'momentum'
+  | 'swing'
+  | 'scalp'
+  | 'news_catalyst'
+  | 'support_bounce'
+  | 'resistance_reject'
+  | 'vwap_reclaim'
+  | 'iron_condor'
+  | 'vertical_spread'
+  | 'covered_call'
+  | 'cash_secured_put'
+  | 'straddle'
+  | 'strangle'
+  | 'custom'
+
+// ─── Core Trade ───────────────────────────────────────────────────────────────
+
+export interface Trade {
+  id: string
+  user_id: string
+
+  // Identification
+  ticker: string
+  asset_type: AssetType
+  direction: TradeDirection
+  status: TradeStatus
+
+  // Timing
+  entry_date: string         // ISO datetime
+  exit_date?: string         // ISO datetime
+  holding_period_days?: number
+
+  // Pricing
+  entry_price: number
+  exit_price?: number
+  quantity: number           // shares / contracts / units
+  fees?: number
+
+  // P&L (computed but stored for query perf)
+  gross_pnl?: number
+  net_pnl?: number
+  pnl_percent?: number
+  r_multiple?: number        // risk/reward realized
+
+  // Risk
+  stop_loss?: number
+  take_profit?: number
+  initial_risk?: number      // $ risked (entry - stop) * qty
+  risk_percent?: number      // % of account risked
+
+  // Options (only when asset_type === 'option')
+  option_legs?: OptionLeg[]
+  option_strategy?: string   // e.g. "Bull Call Spread", "Iron Condor"
+
+  // Crypto-specific
+  exchange?: string          // e.g. "Coinbase", "Binance"
+
+  // Journal
+  setup_notes?: string       // Why you took the trade
+  entry_notes?: string       // What happened on entry
+  exit_notes?: string        // Why you exited
+  mistakes?: string          // What went wrong
+  lessons?: string           // What you learned
+  emotional_state?: 'calm' | 'fomo' | 'fearful' | 'confident' | 'impulsive' | 'disciplined'
+  execution_quality?: 1 | 2 | 3 | 4 | 5   // 1–5 self-rating
+
+  // Categorization
+  strategy_tags: StrategyTag[]
+  custom_tags?: string[]
+  sector?: string
+  market_conditions?: 'trending_up' | 'trending_down' | 'ranging' | 'volatile'
+  timeframe?: '1m' | '5m' | '15m' | '1h' | '4h' | 'D' | 'W'
+
+  // Media
+  screenshots?: TradeScreenshot[]
+
+  // AI fields (populated in M3)
+  ai_grade?: string          // A+, A, B+, B, C, D, F
+  ai_grade_rationale?: string
+  ai_setup_score?: number    // 0–100
+  ai_suggestions?: string[]
+
+  // Metadata
+  created_at: string
+  updated_at: string
+}
+
+// ─── Trade Form (for create/edit) ─────────────────────────────────────────────
+
+export type CreateTradeInput = Omit<
+  Trade,
+  | 'id'
+  | 'user_id'
+  | 'created_at'
+  | 'updated_at'
+  | 'screenshots'
+  | 'ai_grade'
+  | 'ai_grade_rationale'
+  | 'ai_setup_score'
+  | 'ai_suggestions'
+  | 'gross_pnl'
+  | 'net_pnl'
+  | 'pnl_percent'
+  | 'holding_period_days'
+>
+
+export type UpdateTradeInput = Partial<CreateTradeInput>
+
+// ─── User Profile ─────────────────────────────────────────────────────────────
+
+export interface UserProfile {
+  id: string
+  email: string
+  display_name?: string
+  avatar_url?: string
+  account_size?: number      // Starting account value for risk % calc
+  default_risk_percent?: number
+  preferred_timeframe?: string
+  broker?: string
+  timezone?: string
+  created_at: string
+  updated_at: string
+}
+
+// ─── Daily Journal ────────────────────────────────────────────────────────────
+
+export interface DailyJournal {
+  id: string
+  user_id: string
+  date: string               // ISO date YYYY-MM-DD
+  pre_market_notes?: string
+  post_market_notes?: string
+  market_mood?: 'bullish' | 'bearish' | 'neutral'
+  personal_mood?: 1 | 2 | 3 | 4 | 5
+  goals?: string[]
+  reviewed_rules?: boolean
+  created_at: string
+  updated_at: string
+}
+
+// ─── Analytics / Stats ────────────────────────────────────────────────────────
+
+export interface TradeStats {
+  total_trades: number
+  winning_trades: number
+  losing_trades: number
+  win_rate: number           // 0–1
+  total_pnl: number
+  avg_win: number
+  avg_loss: number
+  profit_factor: number
+  avg_r_multiple: number
+  best_trade: number
+  worst_trade: number
+  avg_holding_period: number
+  by_asset_type: Record<AssetType, { count: number; pnl: number }>
+  by_strategy: Record<string, { count: number; pnl: number; win_rate: number }>
+}
