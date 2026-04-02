@@ -16,8 +16,8 @@ const ASSET_COLORS: Record<string, string> = {
 }
 
 export function TradeRow({ trade, onClick }: Props) {
-  const isProfit = (trade.net_pnl ?? 0) > 0
-  const isLoss = (trade.net_pnl ?? 0) < 0
+  //const isProfit = (trade.net_pnl ?? 0) > 0
+  //const isLoss = (trade.net_pnl ?? 0) < 0
 
   return (
     <div

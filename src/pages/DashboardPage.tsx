@@ -22,7 +22,8 @@ import {
 } from 'recharts'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
-import { aggregateStats, fmt, pnlColor } from '@/lib/tradeUtils'
+//import { aggregateStats, fmt, pnlColor } from '@/lib/tradeUtils'
+import { aggregateStats, fmt } from '@/lib/tradeUtils'
 import { TradeRow } from '@/components/trades/TradeRow'
 
 export function DashboardPage() {

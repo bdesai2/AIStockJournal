@@ -9,7 +9,7 @@ export type OptionAction = 'buy' | 'sell'
 // ─── Option Leg ───────────────────────────────────────────────────────────────
 
 export interface OptionLeg {
-  id: string
+  id?: string
   action: OptionAction       // buy | sell
   option_type: OptionType    // call | put
   strike: number

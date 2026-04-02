@@ -31,10 +31,7 @@ export const storage = {
   screenshots: supabase.storage.from('trade-screenshots'),
 
   async uploadScreenshot(
-    userId: string,
-    tradeId: string,
-    file: File,
-    label?: string
+    userId: string, tradeId: string, file: File, _label?: string
   ): Promise<{ url: string; path: string } | null> {
     const ext = file.name.split('.').pop()
     const path = `${userId}/${tradeId}/${Date.now()}.${ext}`

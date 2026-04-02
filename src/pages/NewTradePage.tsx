@@ -8,7 +8,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { STRATEGY_TAG_LABELS } from '@/lib/tradeUtils'
 import { cn } from '@/lib/utils'
-import type { StrategyTag } from '@/types'
+import type { CreateTradeInput, StrategyTag } from '@/types'
 
 // ─── Zod schema ──────────────────────────────────────────────────────────────
 
@@ -188,24 +188,33 @@ export function NewTradePage() {
   const onSubmit = async (data: TradeFormData) => {
     if (!user?.id) return
 
-    const payload = {
+    const basePayload: Partial<CreateTradeInput> = {
       ...data,
-      user_id: user.id,
+      // Ensure dates are stored as ISO strings
       entry_date: new Date(data.entry_date).toISOString(),
       exit_date: data.exit_date ? new Date(data.exit_date).toISOString() : undefined,
+      // Give each option leg a stable id for screenshots/UI
+      option_legs: data.option_legs?.map((leg) => ({ ...leg, id: crypto.randomUUID() })),
+      // Narrow execution_quality to the trade type
+      execution_quality: data.execution_quality as 1 | 2 | 3 | 4 | 5 | undefined,
+      // Align form tags (strings) with the StrategyTag literal union
+      strategy_tags: (data.strategy_tags ?? []) as StrategyTag[],
     }
 
     if (isEdit && id) {
-      const updated = await updateTrade(id, payload)
+      const updated = await updateTrade(id, basePayload)
       if (updated) {
-        // Upload pending screenshots
         for (const file of pendingFiles) {
           await uploadScreenshot(user.id, id, file)
         }
         navigate(`/trades/${id}`)
       }
     } else {
-      const created = await createTrade(payload as Parameters<typeof createTrade>[0])
+      const createPayload = {
+        ...(basePayload as CreateTradeInput),
+        user_id: user.id,
+      } as CreateTradeInput & { user_id: string }
+      const created = await createTrade(createPayload)
       if (created) {
         for (const file of pendingFiles) {
           await uploadScreenshot(user.id, created.id, file)
@@ -429,7 +438,7 @@ export function NewTradePage() {
                   <button
                     key={key}
                     type="button"
-                    onClick={() => toggleTag(key as StrategyTag)}
+                    onClick={() => toggleTag(key)}
                     className={cn(
                       'px-2.5 py-1 rounded text-xs font-medium transition-colors border',
                       isActive
