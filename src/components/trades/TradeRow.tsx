@@ -1,6 +1,6 @@
 import { ArrowUpRight, ArrowDownRight, Clock } from 'lucide-react'
 import type { Trade } from '@/types'
-import { fmt, pnlColor } from '@/lib/tradeUtils'
+import { fmt, pnlColor, calcBuyAmount, calcSellAmount, calcPnlPercent, STRATEGY_TAG_LABELS } from '@/lib/tradeUtils'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -16,8 +16,9 @@ const ASSET_COLORS: Record<string, string> = {
 }
 
 export function TradeRow({ trade, onClick }: Props) {
-  //const isProfit = (trade.net_pnl ?? 0) > 0
-  //const isLoss = (trade.net_pnl ?? 0) < 0
+  const buyAmount = calcBuyAmount(trade)
+  const sellAmount = calcSellAmount(trade)
+  const pnlPercent = calcPnlPercent(trade)
 
   return (
     <div
@@ -59,7 +60,10 @@ export function TradeRow({ trade, onClick }: Props) {
         </div>
         {trade.strategy_tags?.length > 0 && (
           <p className="text-xs text-muted-foreground mt-0.5 truncate">
-            {trade.strategy_tags.slice(0, 2).join(' · ')}
+            {trade.strategy_tags
+              .slice(0, 2)
+              .map((tag) => STRATEGY_TAG_LABELS[tag] ?? tag)
+              .join(' · ')}
           </p>
         )}
       </div>
@@ -79,16 +83,40 @@ export function TradeRow({ trade, onClick }: Props) {
         <p className="text-[10px] text-muted-foreground/60">qty</p>
       </div>
 
+      {/* Buy amount */}
+      <div className="hidden lg:block w-28 text-right">
+        <p className="text-xs font-mono text-muted-foreground">
+          {buyAmount != null ? fmt.currency(buyAmount) : '—'}
+        </p>
+        <p className="text-[10px] text-muted-foreground/60">buy</p>
+      </div>
+
+      {/* Sell amount */}
+      <div className="hidden lg:block w-28 text-right">
+        <p className="text-xs font-mono text-muted-foreground">
+          {sellAmount != null ? fmt.currency(sellAmount) : '—'}
+        </p>
+        <p className="text-[10px] text-muted-foreground/60">sell</p>
+      </div>
+
       {/* P&L */}
       <div className="w-24 text-right">
         <p className={cn('text-sm font-mono font-medium', pnlColor(trade.net_pnl))}>
           {trade.net_pnl != null ? fmt.currency(trade.net_pnl) : '—'}
         </p>
-        {trade.pnl_percent != null && (
+        {pnlPercent != null && (
           <p className={cn('text-xs font-mono', pnlColor(trade.net_pnl))}>
-            {fmt.percent(trade.pnl_percent)}
+            {fmt.percent(pnlPercent)}
           </p>
         )}
+      </div>
+
+      {/* P&L % */}
+      <div className="hidden lg:block w-20 text-right">
+        <p className={cn('text-xs font-mono', pnlColor(trade.net_pnl))}>
+          {pnlPercent != null ? fmt.percent(pnlPercent) : '—'}
+        </p>
+        <p className="text-[10px] text-muted-foreground/60">P/L %</p>
       </div>
 
       {/* R-multiple */}

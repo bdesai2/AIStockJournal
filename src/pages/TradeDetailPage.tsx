@@ -2,11 +2,12 @@ import { useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Edit2, Trash2, ArrowUpRight, ArrowDownRight,
-  TrendingUp, TrendingDown, Calendar, Tag, Brain, Image
+  TrendingUp, TrendingDown, Calendar, Tag, Brain, Image,
 } from 'lucide-react'
+import { ExecutionsCard } from '@/components/trades/ExecutionsCard'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
-import { fmt, pnlColor, STRATEGY_TAG_LABELS } from '@/lib/tradeUtils'
+import { fmt, pnlColor, STRATEGY_TAG_LABELS, calcBuyAmount, calcSellAmount, calcPnlPercent } from '@/lib/tradeUtils'
 import { cn } from '@/lib/utils'
 
 function DetailRow({ label, value, valueClass }: { label: string; value: React.ReactNode; valueClass?: string }) {
@@ -65,6 +66,9 @@ export function TradeDetailPage() {
   }
 
   const isProfit = (trade.net_pnl ?? 0) >= 0
+  const buyAmount = calcBuyAmount(trade)
+  const sellAmount = calcSellAmount(trade)
+  const pnlPercent = calcPnlPercent(trade)
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-5 animate-in">
@@ -105,7 +109,7 @@ export function TradeDetailPage() {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => navigate(`/trades/${id}/edit`)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
@@ -139,7 +143,7 @@ export function TradeDetailPage() {
           <div className="ml-6 pl-6 border-l border-border">
             <p className="text-xs text-muted-foreground mb-1">Return</p>
             <p className={cn('text-2xl font-mono font-semibold', pnlColor(trade.net_pnl))}>
-              {fmt.percent(trade.pnl_percent)}
+              {fmt.percent(pnlPercent ?? null)}
             </p>
           </div>
           {trade.r_multiple != null && (
@@ -171,6 +175,12 @@ export function TradeDetailPage() {
           <DetailRow label="Entry Price" value={fmt.currency(trade.entry_price, 4)} />
           {trade.exit_price != null && <DetailRow label="Exit Price" value={fmt.currency(trade.exit_price, 4)} />}
           <DetailRow label="Quantity" value={fmt.number(trade.quantity, 0)} />
+          {buyAmount != null && (
+            <DetailRow label="Buy Amount" value={fmt.currency(buyAmount)} />
+          )}
+          {sellAmount != null && (
+            <DetailRow label="Sell Amount" value={fmt.currency(sellAmount)} />
+          )}
           {trade.fees != null && <DetailRow label="Fees" value={fmt.currency(trade.fees)} />}
           {trade.gross_pnl != null && <DetailRow label="Gross P&L" value={fmt.currency(trade.gross_pnl)} valueClass={pnlColor(trade.gross_pnl)} />}
           {trade.stop_loss != null && <DetailRow label="Stop Loss" value={fmt.currency(trade.stop_loss, 4)} valueClass="text-[#ff4d6d]" />}
@@ -288,6 +298,9 @@ export function TradeDetailPage() {
           </Card>
         )}
       </div>
+
+      {/* Executions */}
+      <ExecutionsCard trade={trade} />
 
       {/* Screenshots */}
       {trade.screenshots && trade.screenshots.length > 0 && (

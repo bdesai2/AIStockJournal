@@ -44,7 +44,7 @@ export function AppLayout() {
           </div>
           <div>
             <p className="font-display text-lg tracking-wider leading-none">STONKJOURNAL</p>
-            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">v0.1.0 · M1</p>
+            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">v0.2.0 · M2</p>
           </div>
         </div>
 

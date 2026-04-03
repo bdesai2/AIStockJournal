@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { TradeRow } from '@/components/trades/TradeRow'
 import type { AssetType, TradeStatus } from '@/types'
+import { calcPnlPercent } from '@/lib/tradeUtils'
 
 type SortKey = 'entry_date' | 'net_pnl' | 'pnl_percent' | 'r_multiple' | 'ticker'
 type SortDir = 'asc' | 'desc'
@@ -54,8 +55,8 @@ export function TradesPage() {
           bv = b.net_pnl ?? -Infinity
           break
         case 'pnl_percent':
-          av = a.pnl_percent ?? -Infinity
-          bv = b.pnl_percent ?? -Infinity
+          av = calcPnlPercent(a) ?? -Infinity
+          bv = calcPnlPercent(b) ?? -Infinity
           break
         case 'r_multiple':
           av = a.r_multiple ?? -Infinity
@@ -181,8 +182,17 @@ export function TradesPage() {
           <div className="hidden lg:block w-16 text-right">
             <span className="text-xs text-muted-foreground">Qty</span>
           </div>
+          <div className="hidden lg:block w-28 text-right">
+            <span className="text-xs text-muted-foreground">Buy</span>
+          </div>
+          <div className="hidden lg:block w-28 text-right">
+            <span className="text-xs text-muted-foreground">Sell</span>
+          </div>
           <div className="w-24 text-right">
             <SortBtn k="net_pnl" label="P&L" />
+          </div>
+          <div className="hidden lg:block w-20 text-right">
+            <SortBtn k="pnl_percent" label="P&L %" />
           </div>
           <div className="hidden lg:block w-16 text-right">
             <SortBtn k="r_multiple" label="R" />

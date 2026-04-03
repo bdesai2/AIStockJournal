@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -23,6 +23,9 @@ const optionLegSchema = z.object({
   iv: z.coerce.number().optional(),
 })
 
+const nullableString = z.string().nullable().optional().transform((v) => v ?? undefined)
+const nullablePositive = z.coerce.number().optional().transform((v) => (v === 0 || v == null ? undefined : v))
+
 const tradeSchema = z.object({
   ticker: z.string().min(1, 'Ticker is required').max(10).transform((v) => v.toUpperCase()),
   asset_type: z.enum(['stock', 'option', 'etf', 'crypto']),
@@ -30,38 +33,38 @@ const tradeSchema = z.object({
   status: z.enum(['open', 'closed', 'partial']),
 
   entry_date: z.string().min(1, 'Entry date required'),
-  exit_date: z.string().optional(),
+  exit_date: nullableString,
 
   entry_price: z.coerce.number().positive('Entry price required'),
-  exit_price: z.coerce.number().positive().optional(),
+  exit_price: nullablePositive,
   quantity: z.coerce.number().positive('Quantity required'),
   fees: z.coerce.number().nonnegative().optional(),
 
-  stop_loss: z.coerce.number().positive().optional(),
-  take_profit: z.coerce.number().positive().optional(),
-  initial_risk: z.coerce.number().nonnegative().optional(),
-  risk_percent: z.coerce.number().nonnegative().optional(),
+  stop_loss: nullablePositive,
+  take_profit: nullablePositive,
+  initial_risk: z.coerce.number().nonnegative().optional().transform((v) => v === 0 ? undefined : v),
+  risk_percent: z.coerce.number().nonnegative().optional().transform((v) => v === 0 ? undefined : v),
 
   // Options
   option_legs: z.array(optionLegSchema).optional(),
-  option_strategy: z.string().optional(),
+  option_strategy: nullableString,
 
   // Crypto
-  exchange: z.string().optional(),
+  exchange: nullableString,
 
   // Journal
-  setup_notes: z.string().optional(),
-  entry_notes: z.string().optional(),
-  exit_notes: z.string().optional(),
-  mistakes: z.string().optional(),
-  lessons: z.string().optional(),
+  setup_notes: nullableString,
+  entry_notes: nullableString,
+  exit_notes: nullableString,
+  mistakes: nullableString,
+  lessons: nullableString,
   emotional_state: z.enum(['calm', 'fomo', 'fearful', 'confident', 'impulsive', 'disciplined']).optional(),
-  execution_quality: z.coerce.number().min(1).max(5).optional(),
+  execution_quality: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(),
 
   // Categorization
   strategy_tags: z.array(z.string()).default([]),
   custom_tags: z.array(z.string()).optional(),
-  sector: z.string().optional(),
+  sector: nullableString,
   market_conditions: z.enum(['trending_up', 'trending_down', 'ranging', 'volatile']).optional(),
   timeframe: z.enum(['1m', '5m', '15m', '1h', '4h', 'D', 'W']).optional(),
 })
@@ -117,6 +120,8 @@ const textareaClass = `${inputClass} resize-none font-sans`
 export function NewTradePage() {
   const navigate = useNavigate()
   const { id } = useParams()
+  const { state } = useLocation()
+  const prefill = (state as { prefill?: Partial<TradeFormData> } | null)?.prefill
   const isEdit = !!id
   const { user } = useAuthStore()
   const { createTrade, updateTrade, trades, uploadScreenshot, deleteScreenshot } = useTradeStore()
@@ -130,12 +135,15 @@ export function NewTradePage() {
     control,
     setValue,
     reset,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm<TradeFormData>({
     resolver: zodResolver(tradeSchema),
     defaultValues: {
-      asset_type: 'stock',
-      direction: 'long',
+      asset_type: prefill?.asset_type ?? 'stock',
+      direction: prefill?.direction ?? 'long',
+      ticker: prefill?.ticker ?? '',
+      exchange: prefill?.exchange ?? '',
       status: 'open',
       strategy_tags: [],
       entry_date: new Date().toISOString().slice(0, 16),
@@ -151,6 +159,7 @@ export function NewTradePage() {
   const assetType = watch('asset_type')
   const status = watch('status')
   const selectedTags = watch('strategy_tags')
+  const ticker = watch('ticker')
 
   // Populate form when editing
   useEffect(() => {
@@ -167,6 +176,39 @@ export function NewTradePage() {
       } as TradeFormData)
     }
   }, [existingTrade, reset])
+
+  const [sectorLoading, setSectorLoading] = useState(false)
+
+  // Auto-populate sector from Yahoo Finance on ticker change
+  useEffect(() => {
+    if (!ticker || ticker.length < 1 || assetType === 'crypto' || isEdit) return
+    if (getValues('sector')) return // don't overwrite manual input
+
+    const controller = new AbortController()
+    const timer = setTimeout(async () => {
+      setSectorLoading(true)
+      try {
+        const res = await fetch(
+          `/api/yahoo/sector/${encodeURIComponent(ticker.toUpperCase())}`,
+          { signal: controller.signal }
+        )
+        if (!res.ok) return
+        const json: { sector?: string | null } = await res.json()
+        if (json.sector) {
+          setValue('sector', json.sector, { shouldDirty: false })
+        }
+      } catch {
+        // Network error — user can fill in manually
+      } finally {
+        setSectorLoading(false)
+      }
+    }, 800)
+
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [ticker, assetType, isEdit, getValues, setValue])
 
   const toggleTag = (tag: string) => {
     const current = selectedTags ?? []
@@ -187,12 +229,12 @@ export function NewTradePage() {
 
   const onSubmit = async (data: TradeFormData) => {
     if (!user?.id) return
-
+    console.log('✅ onSubmit fired', data)
     const basePayload: Partial<CreateTradeInput> = {
       ...data,
       // Ensure dates are stored as ISO strings
-      entry_date: new Date(data.entry_date).toISOString(),
-      exit_date: data.exit_date ? new Date(data.exit_date).toISOString() : undefined,
+      entry_date: new Date(data.entry_date.replace('T', ' ')).toISOString(),
+      exit_date: data.exit_date ? new Date(data.exit_date.replace('T', ' ')).toISOString() : undefined,
       // Give each option leg a stable id for screenshots/UI
       option_legs: data.option_legs?.map((leg) => ({ ...leg, id: crypto.randomUUID() })),
       // Narrow execution_quality to the trade type
@@ -245,8 +287,7 @@ export function NewTradePage() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-
+      <form onSubmit={handleSubmit(onSubmit, (errors) => console.error('❌ Validation errors', errors))} className="space-y-5">
         {/* ── Core fields ── */}
         <Section title="Trade Details">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -426,7 +467,12 @@ export function NewTradePage() {
               </select>
             </Field>
             <Field label="Sector">
-              <input {...register('sector')} placeholder="e.g. Technology" className={inputClass} />
+              <div className="relative">
+                <input {...register('sector')} placeholder="e.g. Technology" className={inputClass} />
+                {sectorLoading && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                )}
+              </div>
             </Field>
           </div>
 
@@ -534,7 +580,7 @@ export function NewTradePage() {
                     <button
                       type="button"
                       onClick={() => setPendingFiles((prev) => prev.filter((_, j) => j !== i))}
-                      className="absolute top-1 right-1 bg-background/80 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-1 right-1 bg-background/80 rounded-full p-0.5 hover:bg-background transition-colors"
                     >
                       <X className="w-3 h-3 text-destructive" />
                     </button>
@@ -553,7 +599,7 @@ export function NewTradePage() {
                     <button
                       type="button"
                       onClick={() => deleteScreenshot(s.id, s.storage_path)}
-                      className="absolute top-1 right-1 bg-background/80 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-1 right-1 bg-background/80 rounded-full p-0.5 hover:bg-background transition-colors"
                     >
                       <X className="w-3 h-3 text-destructive" />
                     </button>

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
-import type { Trade, CreateTradeInput, UpdateTradeInput } from '@/types'
+import type { Trade, TradeExecution, CreateTradeInput, UpdateTradeInput } from '@/types'
 import { db, storage } from '@/lib/supabase'
+import { calcExecutionsSummary } from '@/lib/tradeUtils'
 
 interface TradeState {
   trades: Trade[]
@@ -16,8 +17,30 @@ interface TradeState {
   setSelectedTrade: (trade: Trade | null) => void
   uploadScreenshot: (userId: string, tradeId: string, file: File, label?: string) => Promise<boolean>
   deleteScreenshot: (screenshotId: string, storagePath: string) => Promise<boolean>
+  // Execution actions
+  addExecution: (userId: string, tradeId: string, exec: Omit<TradeExecution, 'id' | 'trade_id' | 'user_id' | 'created_at'>) => Promise<boolean>
+  deleteExecution: (executionId: string, tradeId: string) => Promise<boolean>
   clearError: () => void
 }
+
+// Apply execution-derived P&L back onto the trade object so the rest of the
+// app (dashboard stats, trade list) sees up-to-date numbers without a refetch.
+function applyExecutions(trade: Trade): Trade {
+  if (!trade.has_executions || !trade.executions?.length) return trade
+  const s = calcExecutionsSummary(trade.executions, trade.asset_type)
+  return {
+    ...trade,
+    net_pnl: s.realizedPnl,
+    gross_pnl: s.realizedPnl + s.totalFees,
+    status: s.status,
+    entry_date: s.entryDate ?? trade.entry_date,
+    exit_date: s.exitDate ?? trade.exit_date,
+    quantity: s.netQty > 0 ? s.netQty : trade.quantity,
+    entry_price: s.avgCostBasis > 0 ? s.avgCostBasis : trade.entry_price,
+  }
+}
+
+const TRADE_SELECT = `*, screenshots:trade_screenshots(*), executions:trade_executions(*)`
 
 export const useTradeStore = create<TradeState>((set, get) => ({
   trades: [],
@@ -29,10 +52,7 @@ export const useTradeStore = create<TradeState>((set, get) => ({
     set({ loading: true, error: null })
     const { data, error } = await db
       .trades()
-      .select(`
-        *,
-        screenshots:trade_screenshots(*)
-      `)
+      .select(TRADE_SELECT)
       .eq('user_id', userId)
       .order('entry_date', { ascending: false })
 
@@ -41,15 +61,37 @@ export const useTradeStore = create<TradeState>((set, get) => ({
       return
     }
 
-    set({ trades: (data as Trade[]) ?? [], loading: false })
+    let trades = (data as Trade[]) ?? []
+    trades = trades.map(applyExecutions)
+
+    // Batch-refresh signed URLs for every screenshot in one round-trip
+    const allPaths = trades
+      .flatMap((t) => t.screenshots ?? [])
+      .map((s) => s.storage_path)
+      .filter(Boolean)
+
+    if (allPaths.length > 0) {
+      const urlMap = await storage.getSignedUrls(allPaths)
+      trades = trades.map((t) => ({
+        ...t,
+        screenshots: t.screenshots?.map((s) => ({
+          ...s,
+          url: urlMap.get(s.storage_path) ?? s.url,
+        })),
+      }))
+    }
+
+    set({ trades, loading: false })
   },
 
   createTrade: async (input) => {
     set({ loading: true, error: null })
+
+    // Create the trade with has_executions=true from the start
     const { data, error } = await db
       .trades()
-      .insert(input)
-      .select(`*, screenshots:trade_screenshots(*)`)
+      .insert({ ...input, has_executions: true })
+      .select(TRADE_SELECT)
       .single()
 
     if (error) {
@@ -57,7 +99,49 @@ export const useTradeStore = create<TradeState>((set, get) => ({
       return null
     }
 
-    const newTrade = data as Trade
+    const trade = data as Trade
+
+    // Build initial executions from the form entry/exit fields
+    // Long opens with buy; short opens with sell
+    const openAction = input.direction === 'long' ? 'buy' : 'sell'
+    const closeAction = input.direction === 'long' ? 'sell' : 'buy'
+
+    const execsToInsert: object[] = [
+      {
+        trade_id: trade.id,
+        user_id: input.user_id,
+        action: openAction,
+        datetime: input.entry_date,
+        quantity: input.quantity,
+        price: input.entry_price,
+        fee: input.fees ?? 0,
+      },
+    ]
+
+    // If the trade is already closed/partial at creation time, add closing execution
+    if (input.exit_price && input.exit_date && input.status !== 'open') {
+      execsToInsert.push({
+        trade_id: trade.id,
+        user_id: input.user_id,
+        action: closeAction,
+        datetime: input.exit_date,
+        quantity: input.quantity,
+        price: input.exit_price,
+        fee: 0,
+      })
+    }
+
+    const { data: execData } = await db
+      .executions()
+      .insert(execsToInsert)
+      .select()
+
+    const newTrade = applyExecutions({
+      ...trade,
+      has_executions: true,
+      executions: (execData ?? []) as import('@/types').TradeExecution[],
+    })
+
     set((state) => ({
       trades: [newTrade, ...state.trades],
       loading: false,
@@ -71,7 +155,7 @@ export const useTradeStore = create<TradeState>((set, get) => ({
       .trades()
       .update({ ...input, updated_at: new Date().toISOString() })
       .eq('id', id)
-      .select(`*, screenshots:trade_screenshots(*)`)
+      .select(TRADE_SELECT)
       .single()
 
     if (error) {
@@ -79,7 +163,7 @@ export const useTradeStore = create<TradeState>((set, get) => ({
       return null
     }
 
-    const updated = data as Trade
+    const updated = applyExecutions(data as Trade)
     set((state) => ({
       trades: state.trades.map((t) => (t.id === id ? updated : t)),
       selectedTrade: state.selectedTrade?.id === id ? updated : state.selectedTrade,
@@ -91,7 +175,6 @@ export const useTradeStore = create<TradeState>((set, get) => ({
   deleteTrade: async (id) => {
     const trade = get().trades.find((t) => t.id === id)
 
-    // Delete screenshots from storage first
     if (trade?.screenshots?.length) {
       for (const s of trade.screenshots) {
         await storage.deleteScreenshot(s.storage_path)
@@ -131,7 +214,6 @@ export const useTradeStore = create<TradeState>((set, get) => ({
 
     if (error) return false
 
-    // Update trade in state with new screenshot
     set((state) => ({
       trades: state.trades.map((t) =>
         t.id === tradeId
@@ -152,6 +234,60 @@ export const useTradeStore = create<TradeState>((set, get) => ({
         ...t,
         screenshots: t.screenshots?.filter((s) => s.id !== screenshotId),
       })),
+    }))
+    return true
+  },
+
+  addExecution: async (userId, tradeId, exec) => {
+    // Insert execution row
+    const { data, error } = await db
+      .executions()
+      .insert({ ...exec, trade_id: tradeId, user_id: userId })
+      .select()
+      .single()
+
+    if (error) {
+      set({ error: error.message })
+      return false
+    }
+
+    // Mark trade as execution-driven (disables DB trigger P&L)
+    await db
+      .trades()
+      .update({ has_executions: true })
+      .eq('id', tradeId)
+
+    // Update local state: append execution, re-derive P&L
+    set((state) => ({
+      trades: state.trades.map((t) => {
+        if (t.id !== tradeId) return t
+        const updated = {
+          ...t,
+          has_executions: true,
+          executions: [...(t.executions ?? []), data as TradeExecution],
+        }
+        return applyExecutions(updated)
+      }),
+    }))
+    return true
+  },
+
+  deleteExecution: async (executionId, tradeId) => {
+    const { error } = await db.executions().delete().eq('id', executionId)
+    if (error) {
+      set({ error: error.message })
+      return false
+    }
+
+    set((state) => ({
+      trades: state.trades.map((t) => {
+        if (t.id !== tradeId) return t
+        const updated = {
+          ...t,
+          executions: t.executions?.filter((e) => e.id !== executionId),
+        }
+        return applyExecutions(updated)
+      }),
     }))
     return true
   },

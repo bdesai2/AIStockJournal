@@ -20,6 +20,20 @@ export interface OptionLeg {
   iv?: number                // implied volatility %
 }
 
+// ─── Trade Execution ──────────────────────────────────────────────────────────
+
+export interface TradeExecution {
+  id: string
+  trade_id: string
+  user_id: string
+  action: 'buy' | 'sell'
+  datetime: string           // ISO datetime
+  quantity: number
+  price: number
+  fee?: number
+  created_at: string
+}
+
 // ─── Screenshot / Attachment ──────────────────────────────────────────────────
 
 export interface TradeScreenshot {
@@ -111,6 +125,10 @@ export interface Trade {
   sector?: string
   market_conditions?: 'trending_up' | 'trending_down' | 'ranging' | 'volatile'
   timeframe?: '1m' | '5m' | '15m' | '1h' | '4h' | 'D' | 'W'
+
+  // Executions (multi-leg position tracking)
+  executions?: TradeExecution[]
+  has_executions?: boolean
 
   // Media
   screenshots?: TradeScreenshot[]

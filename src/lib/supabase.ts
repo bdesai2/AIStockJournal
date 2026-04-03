@@ -23,6 +23,7 @@ export const db = {
   profiles: () => supabase.from('profiles'),
   journals: () => supabase.from('daily_journals'),
   screenshots: () => supabase.from('trade_screenshots'),
+  executions: () => supabase.from('trade_executions'),
 } as const
 
 // ─── Storage helpers ───────────────────────────────────────────────────────────
@@ -45,13 +46,33 @@ export const storage = {
       return null
     }
 
-    const { data } = supabase.storage.from('trade-screenshots').getPublicUrl(path)
-    return { url: data.publicUrl, path }
+    // Store a short-lived signed URL; fetchTrades regenerates them on every load
+    const { data: signData, error: signError } = await supabase.storage
+      .from('trade-screenshots')
+      .createSignedUrl(path, 60 * 60 * 24) // 24 h — refreshed on next fetchTrades
+    if (signError || !signData) return null
+    return { url: signData.signedUrl, path }
   },
 
   async deleteScreenshot(path: string): Promise<boolean> {
     const { error } = await supabase.storage.from('trade-screenshots').remove([path])
     return !error
+  },
+
+  // Batch-refresh signed URLs for all screenshot paths in one round-trip
+  async getSignedUrls(paths: string[]): Promise<Map<string, string>> {
+    if (paths.length === 0) return new Map()
+    const { data } = await supabase.storage
+      .from('trade-screenshots')
+      .createSignedUrls(paths, 60 * 60 * 24) // 24 h
+    if (!data) return new Map()
+    return new Map(
+      data
+        .filter((s): s is typeof s & { path: string; signedUrl: string } =>
+          typeof s.path === 'string' && typeof s.signedUrl === 'string'
+        )
+        .map((s) => [s.path, s.signedUrl])
+    )
   },
 }
 
