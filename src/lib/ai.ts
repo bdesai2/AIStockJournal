@@ -46,6 +46,21 @@ export interface TradeAnalysisResult {
   }
 }
 
+export interface PotentialTradeResult {
+  setup_quality: 'weak' | 'moderate' | 'strong' | 'excellent'
+  rr_potential: number | null
+  key_levels: {
+    entry: number
+    stop: number
+    target: number
+  }
+  bullish_case: string
+  bearish_case: string
+  probability: 'low' | 'medium' | 'high'
+  recommendation: 'pass' | 'watch' | 'consider' | 'strong buy'
+  model?: string
+}
+
 // ─── HTTP Utility ─────────────────────────────────────────────────────────────
 
 async function post<T>(path: string, body: unknown): Promise<T> {
@@ -93,4 +108,17 @@ export const aiApi = {
    */
   tradeAnalysis: (trade: Trade) =>
     post<TradeAnalysisResult>('/api/ai/trade-analysis', { trade }),
+
+  /**
+   * Evaluate a potential trade setup before entry
+   */
+  potentialTrade: (params: {
+    symbol: string
+    market_type?: string
+    direction?: string
+    proposed_entry: number
+    stop_level?: number
+    target_level?: number
+    notes?: string
+  }) => post<PotentialTradeResult>('/api/ai/potential-trade', params),
 }
