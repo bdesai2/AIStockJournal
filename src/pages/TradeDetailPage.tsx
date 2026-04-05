@@ -1,13 +1,14 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Edit2, Trash2, ArrowUpRight, ArrowDownRight,
-  TrendingUp, TrendingDown, Calendar, Tag, Brain, Image,
+  TrendingUp, TrendingDown, Calendar, Tag, Brain, Image, Sparkles, Loader2,
 } from 'lucide-react'
 import { ExecutionsCard } from '@/components/trades/ExecutionsCard'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
-import { fmt, pnlColor, STRATEGY_TAG_LABELS, calcBuyAmount, calcSellAmount, calcPnlPercent } from '@/lib/tradeUtils'
+import { useAiStore } from '@/store/aiStore'
+import { fmt, pnlColor, STRATEGY_TAG_LABELS, calcBuyAmount, calcSellAmount, calcPnlPercent, calcUnrealizedPnl, calcUnrealizedPercent } from '@/lib/tradeUtils'
 import { cn } from '@/lib/utils'
 
 function DetailRow({ label, value, valueClass }: { label: string; value: React.ReactNode; valueClass?: string }) {
@@ -36,6 +37,8 @@ export function TradeDetailPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const { trades, fetchTrades, deleteTrade, setSelectedTrade } = useTradeStore()
+  const { gradeTrade, gradeLoading, gradeError, clearGradeError } = useAiStore()
+  const [currentPrice, setCurrentPrice] = useState<number | null>(null)
 
   useEffect(() => {
     if (user?.id && trades.length === 0) fetchTrades(user.id)
@@ -47,6 +50,30 @@ export function TradeDetailPage() {
     if (trade) setSelectedTrade(trade)
     return () => setSelectedTrade(null)
   }, [trade])
+
+  // Fetch current price for unrealized P&L (non-crypto only)
+  useEffect(() => {
+    if (!trade || trade.asset_type === 'crypto') return
+
+    const controller = new AbortController()
+
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/yahoo/quote/${encodeURIComponent(trade.ticker)}`, {
+          signal: controller.signal,
+        })
+        if (!res.ok) return
+        const json: { price?: number | null } = await res.json()
+        if (typeof json.price === 'number') {
+          setCurrentPrice(json.price)
+        }
+      } catch {
+        // Silent failure; unrealized metrics just won't show
+      }
+    })()
+
+    return () => controller.abort()
+  }, [trade?.ticker, trade?.asset_type])
 
   if (!trade) {
     return (
@@ -69,6 +96,32 @@ export function TradeDetailPage() {
   const buyAmount = calcBuyAmount(trade)
   const sellAmount = calcSellAmount(trade)
   const pnlPercent = calcPnlPercent(trade)
+  const hasOpenPosition = trade.status !== 'closed' && (trade.quantity ?? 0) > 0
+  const unrealizedPnl = hasOpenPosition ? calcUnrealizedPnl(trade, currentPrice) : null
+  const unrealizedPercent = hasOpenPosition ? calcUnrealizedPercent(trade, currentPrice) : null
+
+  let tradeLengthLabel: string | null = null
+  if (trade.status === 'closed' && trade.entry_date && trade.exit_date) {
+    const start = new Date(trade.entry_date).getTime()
+    const end = new Date(trade.exit_date).getTime()
+    if (!Number.isNaN(start) && !Number.isNaN(end) && end > start) {
+      const diffMs = end - start
+      const totalMinutes = diffMs / (1000 * 60)
+      const totalHours = diffMs / (1000 * 60 * 60)
+      const totalDays = diffMs / (1000 * 60 * 60 * 24)
+
+      if (totalMinutes < 60) {
+        const mins = Math.max(1, Math.round(totalMinutes))
+        tradeLengthLabel = `${mins} minute${mins === 1 ? '' : 's'}`
+      } else if (totalHours < 48) {
+        const hours = Math.max(1, Math.round(totalHours))
+        tradeLengthLabel = `${hours} hour${hours === 1 ? '' : 's'}`
+      } else {
+        const days = Math.max(1, Math.round(totalDays))
+        tradeLengthLabel = `${days} day${days === 1 ? '' : 's'}`
+      }
+    }
+  }
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-5 animate-in">
@@ -110,6 +163,16 @@ export function TradeDetailPage() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
+          {trade.status === 'closed' && (
+            <button
+              onClick={() => gradeTrade(trade)}
+              disabled={gradeLoading}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-primary/40 text-sm text-primary hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {gradeLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              {trade.ai_grade ? 'Re-Grade' : 'Grade Trade'}
+            </button>
+          )}
           <button
             onClick={() => navigate(`/trades/${id}/edit`)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
@@ -169,6 +232,14 @@ export function TradeDetailPage() {
         </div>
       )}
 
+      {/* Grade error */}
+      {gradeError && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-md bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+          <span>{gradeError}</span>
+          <button onClick={clearGradeError} className="ml-2 text-xs hover:underline">Dismiss</button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Trade details */}
         <Card title="Trade Details" icon={TrendingUp}>
@@ -181,12 +252,30 @@ export function TradeDetailPage() {
           {sellAmount != null && (
             <DetailRow label="Sell Amount" value={fmt.currency(sellAmount)} />
           )}
+          {hasOpenPosition && currentPrice != null && (
+            <DetailRow label="Current Price" value={fmt.currency(currentPrice, 4)} />
+          )}
+          {hasOpenPosition && unrealizedPnl != null && (
+            <DetailRow
+              label="Unrealized P&L"
+              value={fmt.currency(unrealizedPnl)}
+              valueClass={pnlColor(unrealizedPnl)}
+            />
+          )}
+          {hasOpenPosition && unrealizedPercent != null && (
+            <DetailRow
+              label="Unrealized %"
+              value={fmt.percent(unrealizedPercent)}
+              valueClass={pnlColor(unrealizedPnl ?? 0)}
+            />
+          )}
           {trade.fees != null && <DetailRow label="Fees" value={fmt.currency(trade.fees)} />}
           {trade.gross_pnl != null && <DetailRow label="Gross P&L" value={fmt.currency(trade.gross_pnl)} valueClass={pnlColor(trade.gross_pnl)} />}
           {trade.stop_loss != null && <DetailRow label="Stop Loss" value={fmt.currency(trade.stop_loss, 4)} valueClass="text-[#ff4d6d]" />}
           {trade.take_profit != null && <DetailRow label="Take Profit" value={fmt.currency(trade.take_profit, 4)} valueClass="text-[#00d4a1]" />}
           {trade.initial_risk != null && <DetailRow label="Initial Risk" value={fmt.currency(trade.initial_risk)} />}
           {trade.risk_percent != null && <DetailRow label="Risk %" value={`${trade.risk_percent.toFixed(2)}%`} />}
+          {tradeLengthLabel && <DetailRow label="Trade Length" value={tradeLengthLabel} />}
           {trade.holding_period_days != null && <DetailRow label="Holding Period" value={`${trade.holding_period_days.toFixed(1)} days`} />}
         </Card>
 
@@ -279,9 +368,26 @@ export function TradeDetailPage() {
           </Card>
         )}
 
-        {/* AI Analysis placeholder */}
+        {/* AI Analysis */}
         {(trade.ai_grade || trade.ai_grade_rationale) && (
           <Card title="AI Analysis" icon={Brain}>
+            {trade.ai_setup_score != null && (
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs text-muted-foreground">Setup Score</span>
+                <div className={cn('px-2 py-0.5 rounded text-xs font-mono font-bold',
+                  trade.ai_setup_score >= 75 ? 'bg-profit-muted text-[#00d4a1]' :
+                  trade.ai_setup_score >= 50 ? 'bg-blue-400/10 text-blue-400' :
+                  'bg-[#f0b429]/10 text-[#f0b429]'
+                )}>
+                  {trade.ai_setup_score}/100
+                </div>
+                {trade.ai_analyzed_at && (
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {fmt.date(trade.ai_analyzed_at)}
+                  </span>
+                )}
+              </div>
+            )}
             {trade.ai_grade_rationale && (
               <p className="text-sm text-foreground/80 leading-relaxed mb-3">{trade.ai_grade_rationale}</p>
             )}

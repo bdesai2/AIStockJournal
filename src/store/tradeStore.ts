@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Trade, TradeExecution, CreateTradeInput, UpdateTradeInput } from '@/types'
+import type { Trade, TradeExecution, CreateTradeInput, UpdateTradeInput, AiTradeUpdate } from '@/types'
 import { db, storage } from '@/lib/supabase'
 import { calcExecutionsSummary } from '@/lib/tradeUtils'
 
@@ -12,7 +12,7 @@ interface TradeState {
   // Actions
   fetchTrades: (userId: string) => Promise<void>
   createTrade: (input: CreateTradeInput & { user_id: string }) => Promise<Trade | null>
-  updateTrade: (id: string, input: UpdateTradeInput) => Promise<Trade | null>
+  updateTrade: (id: string, input: UpdateTradeInput | AiTradeUpdate) => Promise<Trade | null>
   deleteTrade: (id: string) => Promise<boolean>
   setSelectedTrade: (trade: Trade | null) => void
   uploadScreenshot: (userId: string, tradeId: string, file: File, label?: string) => Promise<boolean>

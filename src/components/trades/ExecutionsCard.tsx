@@ -32,10 +32,11 @@ export function ExecutionsCard({ trade }: Props) {
     quantity: '',
     price: '',
     fee: '',
+    dividend: '',
   })
 
   const executions: TradeExecution[] = [...(trade.executions ?? [])].sort(
-    (a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime()
+    (a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
   )
 
   const summary = calcExecutionsSummary(executions, trade.asset_type as AssetType)
@@ -56,10 +57,11 @@ export function ExecutionsCard({ trade }: Props) {
       quantity: parseFloat(form.quantity),
       price: parseFloat(form.price),
       fee: form.fee ? parseFloat(form.fee) : 0,
+      dividend: form.dividend ? parseFloat(form.dividend) : 0,
     })
     setSaving(false)
     setAdding(false)
-    setForm({ action: 'buy', datetime: nowLocal(), quantity: '', price: '', fee: '' })
+    setForm({ action: 'buy', datetime: nowLocal(), quantity: '', price: '', fee: '', dividend: '' })
   }
 
   const handleDelete = async (execId: string) => {
@@ -173,6 +175,18 @@ export function ExecutionsCard({ trade }: Props) {
                   className={inputClass}
                 />
               </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Dividend</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={form.dividend}
+                  onChange={(e) => setForm((f) => ({ ...f, dividend: e.target.value }))}
+                  className={inputClass}
+                />
+              </div>
             </div>
 
             <div className="flex gap-2 pt-1">
@@ -203,19 +217,20 @@ export function ExecutionsCard({ trade }: Props) {
         {executions.length > 0 && (
           <>
             {/* Column headers */}
-            <div className="grid grid-cols-[80px_1fr_80px_80px_60px_32px] gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground px-1">
+            <div className="grid grid-cols-[80px_1fr_80px_80px_60px_80px_32px] gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground px-1">
               <span>Action</span>
               <span>Date / Time</span>
               <span className="text-right">Qty</span>
               <span className="text-right">Price</span>
               <span className="text-right">Fee</span>
+              <span className="text-right">Dividend</span>
               <span />
             </div>
 
             {executions.map((exec) => (
               <div
                 key={exec.id}
-                className="grid grid-cols-[80px_1fr_80px_80px_60px_32px] gap-2 items-center px-1 py-1 rounded hover:bg-accent/30 transition-colors"
+                className="grid grid-cols-[80px_1fr_80px_80px_60px_80px_32px] gap-2 items-center px-1 py-1 rounded hover:bg-accent/30 transition-colors"
               >
                 <span
                   className={cn(
@@ -247,6 +262,9 @@ export function ExecutionsCard({ trade }: Props) {
                 <span className="text-xs font-mono text-right">{fmt.currency(exec.price, 4)}</span>
                 <span className="text-xs font-mono text-right text-muted-foreground">
                   {exec.fee ? fmt.currency(exec.fee) : '—'}
+                </span>
+                <span className="text-xs font-mono text-right text-muted-foreground">
+                  {exec.dividend ? fmt.currency(exec.dividend) : '—'}
                 </span>
                 <button
                   onClick={() => handleDelete(exec.id)}

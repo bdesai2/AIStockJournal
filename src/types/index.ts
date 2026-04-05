@@ -5,6 +5,7 @@ export type TradeDirection = 'long' | 'short'
 export type TradeStatus = 'open' | 'closed' | 'partial'
 export type OptionType = 'call' | 'put'
 export type OptionAction = 'buy' | 'sell'
+export type TradeDuration = 'scalp' | 'swing' | 'long_term'
 
 // ─── Option Leg ───────────────────────────────────────────────────────────────
 
@@ -31,6 +32,7 @@ export interface TradeExecution {
   quantity: number
   price: number
   fee?: number
+  dividend?: number
   created_at: string
 }
 
@@ -125,6 +127,7 @@ export interface Trade {
   sector?: string
   market_conditions?: 'trending_up' | 'trending_down' | 'ranging' | 'volatile'
   timeframe?: '1m' | '5m' | '15m' | '1h' | '4h' | 'D' | 'W'
+  duration?: TradeDuration
 
   // Executions (multi-leg position tracking)
   executions?: TradeExecution[]
@@ -138,6 +141,9 @@ export interface Trade {
   ai_grade_rationale?: string
   ai_setup_score?: number    // 0–100
   ai_suggestions?: string[]
+  ai_analyzed_at?: string    // ISO timestamp of last AI grade run
+  ai_model_version?: string  // Claude model used, e.g. claude-haiku-4-5-20251001
+  ai_expires_at?: string     // ISO timestamp when cached AI grade should be refreshed
 
   // Metadata
   created_at: string
@@ -164,6 +170,18 @@ export type CreateTradeInput = Omit<
 >
 
 export type UpdateTradeInput = Partial<CreateTradeInput>
+
+// ─── AI Trade Update (server-side write-back) ──────────────────────────────────
+
+export interface AiTradeUpdate {
+  ai_grade?: string
+  ai_grade_rationale?: string
+  ai_setup_score?: number
+  ai_suggestions?: string[]
+  ai_analyzed_at?: string
+  ai_model_version?: string
+  ai_expires_at?: string
+}
 
 // ─── User Profile ─────────────────────────────────────────────────────────────
 

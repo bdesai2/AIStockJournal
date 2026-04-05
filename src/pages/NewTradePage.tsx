@@ -3,9 +3,10 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { PlusCircle, Trash2, ChevronDown, ChevronUp, Loader2, ArrowLeft, Upload, X } from 'lucide-react'
+import { PlusCircle, Trash2, ChevronDown, ChevronUp, Loader2, ArrowLeft, Upload, X, Sparkles } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
+import { useAiStore } from '@/store/aiStore'
 import { STRATEGY_TAG_LABELS } from '@/lib/tradeUtils'
 import { cn } from '@/lib/utils'
 import type { CreateTradeInput, StrategyTag } from '@/types'
@@ -67,6 +68,7 @@ const tradeSchema = z.object({
   sector: nullableString,
   market_conditions: z.enum(['trending_up', 'trending_down', 'ranging', 'volatile']).optional(),
   timeframe: z.enum(['1m', '5m', '15m', '1h', '4h', 'D', 'W']).optional(),
+  duration: z.enum(['scalp', 'swing', 'long_term']).optional(),
 })
 
 type TradeFormData = z.infer<typeof tradeSchema>
@@ -125,6 +127,7 @@ export function NewTradePage() {
   const isEdit = !!id
   const { user } = useAuthStore()
   const { createTrade, updateTrade, trades, uploadScreenshot, deleteScreenshot } = useTradeStore()
+  const { runSetupCheck, setupLoading, setupResult, setupError, clearSetupResult } = useAiStore()
 
   const existingTrade = isEdit ? trades.find((t) => t.id === id) : undefined
 
@@ -148,6 +151,7 @@ export function NewTradePage() {
       strategy_tags: [],
       entry_date: new Date().toISOString().slice(0, 16),
       fees: 0,
+      duration: 'swing',
     },
   })
 
@@ -217,6 +221,24 @@ export function NewTradePage() {
     } else {
       setValue('strategy_tags', [...current, tag])
     }
+  }
+
+  // Cleanup setup check result on unmount
+  useEffect(() => {
+    return () => clearSetupResult()
+  }, [])
+
+  const handleSetupCheck = () => {
+    const values = getValues()
+    if (!values.ticker || !values.entry_price) return
+    runSetupCheck({
+      ticker: values.ticker,
+      entry_price: Number(values.entry_price),
+      stop_loss: values.stop_loss ? Number(values.stop_loss) : undefined,
+      take_profit: values.take_profit ? Number(values.take_profit) : undefined,
+      direction: values.direction,
+      quantity: values.quantity ? Number(values.quantity) : undefined,
+    })
   }
 
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
@@ -377,6 +399,54 @@ export function NewTradePage() {
               <input {...register('risk_percent')} type="number" step="0.01" placeholder="1.5" className={inputClass} />
             </Field>
           </div>
+
+          {/* Setup Check */}
+          <div className="mt-4 pt-4 border-t border-border/40">
+            <button
+              type="button"
+              onClick={handleSetupCheck}
+              disabled={setupLoading || !watch('entry_price')}
+              className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 disabled:opacity-50 transition-colors"
+            >
+              {setupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              Analyze Setup
+            </button>
+
+            {setupError && (
+              <p className="text-destructive text-xs mt-2">{setupError}</p>
+            )}
+
+            {setupResult && (
+              <div className="mt-3 rounded-md border border-border bg-accent/20 p-3 space-y-2 text-sm">
+                <div className="flex items-center gap-3">
+                  <span className={cn('px-2 py-0.5 rounded text-xs font-mono font-bold',
+                    setupResult.rr_rating === 'excellent' || setupResult.rr_rating === 'good'
+                      ? 'bg-profit-muted text-[#00d4a1]'
+                      : setupResult.rr_rating === 'acceptable'
+                      ? 'bg-blue-400/10 text-blue-400'
+                      : 'bg-loss-muted text-[#ff4d6d]'
+                  )}>
+                    R/R: {setupResult.rr_rating}
+                  </span>
+                  <span className={cn('px-2 py-0.5 rounded text-xs font-mono font-bold',
+                    setupResult.setup_quality === 'strong' ? 'bg-profit-muted text-[#00d4a1]' :
+                    setupResult.setup_quality === 'moderate' ? 'bg-blue-400/10 text-blue-400' :
+                    'bg-[#f0b429]/10 text-[#f0b429]'
+                  )}>
+                    Setup: {setupResult.setup_quality}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">{setupResult.rr_comment}</p>
+                <p className="text-xs text-muted-foreground">{setupResult.setup_comment}</p>
+                <p className="text-xs text-foreground/70">{setupResult.position_size_note}</p>
+                {setupResult.warnings.map((w, i) => (
+                  <p key={i} className="text-xs text-[#f0b429] flex items-start gap-1">
+                    <span>⚠</span>{w}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
         </Section>
 
         {/* ── Option Legs ── */}
@@ -455,6 +525,14 @@ export function NewTradePage() {
                 {(['1m', '5m', '15m', '1h', '4h', 'D', 'W'] as const).map((v) => (
                   <option key={v} value={v}>{v}</option>
                 ))}
+              </select>
+            </Field>
+            <Field label="Duration">
+              <select {...register('duration')} className={selectClass}>
+                <option value="">— Select —</option>
+                <option value="scalp">Scalp</option>
+                <option value="swing">Swing</option>
+                <option value="long_term">Long term</option>
               </select>
             </Field>
             <Field label="Market Conditions">

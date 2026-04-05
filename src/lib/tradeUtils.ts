@@ -75,6 +75,31 @@ export function calcRMultiple(trade: Partial<Trade>): number | null {
   return net / trade.initial_risk
 }
 
+export function calcUnrealizedPnl(trade: Partial<Trade>, currentPrice?: number | null): number | null {
+  if (currentPrice == null) return null
+  if (!trade.quantity || !trade.entry_price) return null
+
+  const multiplier = trade.asset_type === 'option' ? 100 : 1
+  const qty = trade.quantity
+
+  const raw =
+    trade.direction === 'long'
+      ? (currentPrice - trade.entry_price) * qty * multiplier
+      : (trade.entry_price - currentPrice) * qty * multiplier
+
+  return raw
+}
+
+export function calcUnrealizedPercent(trade: Partial<Trade>, currentPrice?: number | null): number | null {
+  const unrealized = calcUnrealizedPnl(trade, currentPrice)
+  if (unrealized == null) return null
+
+  const buyAmount = calcBuyAmount(trade)
+  if (buyAmount == null || buyAmount === 0) return null
+
+  return (unrealized / buyAmount) * 100
+}
+
 export function calcBuyAmount(trade: Partial<Trade>): number | null {
   const multiplier = trade.asset_type === 'option' ? 100 : 1
 
@@ -278,12 +303,9 @@ export function calcExecutionsSummary(
   const totalCost = openLots.reduce((s, l) => s + l.qty * l.price, 0)
   const avgCostBasis = openQty > 0 ? totalCost / openQty : 0
 
-  const status =
-    executions.length > 0 && netQty === 0
-      ? 'closed'
-      : executions.length > 0 && realizedPnl !== 0
-      ? 'partial'
-      : 'open'
+  // Status: treat any still-open position as "open"; fully exited as "closed".
+  const status: ExecutionSummary['status'] =
+    executions.length > 0 && netQty === 0 ? 'closed' : 'open'
 
   return { netQty, avgCostBasis, realizedPnl, totalFees, status, entryDate, exitDate }
 }

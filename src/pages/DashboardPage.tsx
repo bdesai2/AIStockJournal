@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   TrendingUp,
@@ -8,6 +8,11 @@ import {
   Award,
   AlertTriangle,
   PlusCircle,
+  Brain,
+  Sparkles,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import {
   AreaChart,
@@ -22,6 +27,7 @@ import {
 } from 'recharts'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
+import { useAiStore } from '@/store/aiStore'
 import { aggregateStats, fmt, STRATEGY_TAG_LABELS } from '@/lib/tradeUtils'
 import { TradeRow } from '@/components/trades/TradeRow'
 import type { CSSProperties } from 'react'
@@ -54,10 +60,22 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const { trades, loading, fetchTrades } = useTradeStore()
+  const { runWeeklyDigest, digestLoading, digestResult, digestError, clearDigestError } = useAiStore()
+  const [digestOpen, setDigestOpen] = useState(false)
 
   useEffect(() => {
     if (user?.id) fetchTrades(user.id)
   }, [user?.id, fetchTrades])
+
+  const closedTrades = useMemo(
+    () => trades.filter(t => t.status === 'closed').slice(0, 30),
+    [trades]
+  )
+
+  const handleRunDigest = () => {
+    runWeeklyDigest(closedTrades)
+    setDigestOpen(true)
+  }
 
   const stats = useMemo(() => aggregateStats(trades), [trades])
 
@@ -264,6 +282,79 @@ export function DashboardPage() {
               </div>
             ))}
           </div>
+
+          {/* AI Insights card */}
+          {closedTrades.length >= 5 && (
+            <div className="rounded-lg border border-border bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <Brain className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    AI Insights
+                  </span>
+                  {digestResult && (
+                    <span className="text-xs text-muted-foreground font-mono">(last {closedTrades.length} trades)</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleRunDigest}
+                    disabled={digestLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-primary/40 text-xs text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+                  >
+                    {digestLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                    {digestResult ? 'Refresh' : 'Run Digest'}
+                  </button>
+                  {digestResult && (
+                    <button onClick={() => setDigestOpen(v => !v)} className="p-1 text-muted-foreground hover:text-foreground">
+                      {digestOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {digestError && (
+                <div className="px-4 py-3 text-sm text-destructive bg-destructive/5">
+                  {digestError} — <button onClick={clearDigestError} className="underline">dismiss</button>
+                </div>
+              )}
+
+              {digestResult && digestOpen && (
+                <div className="p-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs font-medium text-[#00d4a1] uppercase tracking-wider mb-2">
+                      What's Working
+                    </p>
+                    {digestResult.positive_patterns.map((p, i) => (
+                      <div key={i} className="mb-2">
+                        <p className="text-sm font-medium">{p.pattern}</p>
+                        <p className="text-xs text-muted-foreground">{p.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-[#ff4d6d] uppercase tracking-wider mb-2">
+                      Areas to Fix
+                    </p>
+                    {digestResult.negative_patterns.map((p, i) => (
+                      <div key={i} className="mb-2">
+                        <p className="text-sm font-medium">{p.pattern}</p>
+                        <p className="text-xs text-muted-foreground">{p.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="xl:col-span-2 pt-3 border-t border-border">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
+                      This Week's Lesson
+                    </p>
+                    <p className="text-sm text-foreground/90 leading-relaxed">
+                      {digestResult.actionable_lesson}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Charts row */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
