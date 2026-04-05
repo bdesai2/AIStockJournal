@@ -30,6 +30,22 @@ export interface WeeklyDigestResult {
   actionable_lesson: string
 }
 
+export interface TradeAnalysisResult {
+  market_overview: string
+  current_price_estimate: number
+  estimated_pnl: number
+  estimated_pnl_percent: number
+  bullish_factors: string[]
+  bearish_factors: string[]
+  technical_outlook: string
+  recommendation: 'hold' | 'reduce' | 'exit' | 'add'
+  confidence: 'low' | 'moderate' | 'high'
+  next_key_levels: {
+    resistance: number
+    support: number
+  }
+}
+
 // ─── HTTP Utility ─────────────────────────────────────────────────────────────
 
 async function post<T>(path: string, body: unknown): Promise<T> {
@@ -71,4 +87,10 @@ export const aiApi = {
    */
   weeklyDigest: (trades: Trade[]) =>
     post<WeeklyDigestResult>('/api/ai/weekly-digest', { trades }),
+
+  /**
+   * Analyze an open/active trade with current market context
+   */
+  tradeAnalysis: (trade: Trade) =>
+    post<TradeAnalysisResult>('/api/ai/trade-analysis', { trade }),
 }

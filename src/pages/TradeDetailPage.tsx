@@ -37,7 +37,7 @@ export function TradeDetailPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const { trades, fetchTrades, deleteTrade, setSelectedTrade } = useTradeStore()
-  const { gradeTrade, gradeLoading, gradeError, clearGradeError } = useAiStore()
+  const { gradeTrade, gradeLoading, gradeError, clearGradeError, analyzeOpenTrade, analysisLoading, analysisError, analysisResult, clearAnalysisError } = useAiStore()
   const [currentPrice, setCurrentPrice] = useState<number | null>(null)
 
   useEffect(() => {
@@ -97,9 +97,9 @@ export function TradeDetailPage() {
   const sellAmount = calcSellAmount(trade)
   const pnlPercent = calcPnlPercent(trade)
   const hasOpenPosition = trade.status !== 'closed' && (trade.quantity ?? 0) > 0
-  const unrealizedPnl = hasOpenPosition ? calcUnrealizedPnl(trade, currentPrice) : null
-  const unrealizedPercent = hasOpenPosition ? calcUnrealizedPercent(trade, currentPrice) : null
-
+  const isStockTrade = trade.asset_type === 'stock'
+  const unrealizedPnl = hasOpenPosition && isStockTrade ? calcUnrealizedPnl(trade, currentPrice) : null
+  const unrealizedPercent = hasOpenPosition && isStockTrade ? calcUnrealizedPercent(trade, currentPrice) : null
   let tradeLengthLabel: string | null = null
   if (trade.status === 'closed' && trade.entry_date && trade.exit_date) {
     const start = new Date(trade.entry_date).getTime()
@@ -149,6 +149,26 @@ export function TradeDetailPage() {
               <span className="text-xs font-mono px-2 py-1 bg-accent rounded uppercase text-muted-foreground">
                 {trade.asset_type}
               </span>
+              {trade.asset_type === 'option' && trade.option_type && (
+                <span className={cn(
+                  'text-xs font-mono px-2 py-1 rounded uppercase font-bold',
+                  trade.option_type === 'call'
+                    ? 'bg-profit-muted text-[#00d4a1]'
+                    : 'bg-loss-muted text-[#ff4d6d]'
+                )}>
+                  {trade.option_type}
+                </span>
+              )}
+              {trade.ai_grade && (
+                <span className={cn(
+                  'text-xs font-mono px-2 py-1 rounded font-bold',
+                  trade.ai_grade.startsWith('A') ? 'bg-profit-muted text-[#00d4a1]' :
+                  trade.ai_grade.startsWith('B') ? 'bg-blue-400/10 text-blue-400' :
+                  'bg-[#f0b429]/10 text-[#f0b429]'
+                )}>
+                  {trade.ai_grade}
+                </span>
+              )}
               <span className={cn(
                 'text-xs font-mono px-2 py-1 rounded',
                 trade.status === 'open' ? 'bg-[#f0b429]/10 text-[#f0b429]' :
@@ -171,6 +191,16 @@ export function TradeDetailPage() {
             >
               {gradeLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
               {trade.ai_grade ? 'Re-Grade' : 'Grade Trade'}
+            </button>
+          )}
+          {(trade.status === 'open' || trade.status === 'partial') && (
+            <button
+              onClick={() => analyzeOpenTrade(trade)}
+              disabled={analysisLoading}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-primary/40 text-sm text-primary hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {analysisLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              Analyze Trade
             </button>
           )}
           <button
@@ -217,18 +247,6 @@ export function TradeDetailPage() {
               </p>
             </div>
           )}
-          {trade.ai_grade && (
-            <div className="ml-auto">
-              <p className="text-xs text-muted-foreground mb-1 text-right">AI Grade</p>
-              <div className={cn('grade-badge w-12 h-12 text-lg',
-                trade.ai_grade.startsWith('A') ? 'bg-profit-muted text-[#00d4a1] border border-[#00d4a1]/30' :
-                trade.ai_grade.startsWith('B') ? 'bg-blue-400/10 text-blue-400 border border-blue-400/30' :
-                'bg-[#f0b429]/10 text-[#f0b429] border border-[#f0b429]/30'
-              )}>
-                {trade.ai_grade}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -237,6 +255,14 @@ export function TradeDetailPage() {
         <div className="flex items-center justify-between px-3 py-2 rounded-md bg-destructive/10 border border-destructive/20 text-sm text-destructive">
           <span>{gradeError}</span>
           <button onClick={clearGradeError} className="ml-2 text-xs hover:underline">Dismiss</button>
+        </div>
+      )}
+
+      {/* Analysis error */}
+      {analysisError && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-md bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+          <span>{analysisError}</span>
+          <button onClick={clearAnalysisError} className="ml-2 text-xs hover:underline">Dismiss</button>
         </div>
       )}
 
@@ -252,22 +278,32 @@ export function TradeDetailPage() {
           {sellAmount != null && (
             <DetailRow label="Sell Amount" value={fmt.currency(sellAmount)} />
           )}
-          {hasOpenPosition && currentPrice != null && (
+          {hasOpenPosition && trade.asset_type === 'stock' && currentPrice != null && (
             <DetailRow label="Current Price" value={fmt.currency(currentPrice, 4)} />
           )}
-          {hasOpenPosition && unrealizedPnl != null && (
-            <DetailRow
-              label="Unrealized P&L"
-              value={fmt.currency(unrealizedPnl)}
-              valueClass={pnlColor(unrealizedPnl)}
-            />
-          )}
-          {hasOpenPosition && unrealizedPercent != null && (
-            <DetailRow
-              label="Unrealized %"
-              value={fmt.percent(unrealizedPercent)}
-              valueClass={pnlColor(unrealizedPnl ?? 0)}
-            />
+          {hasOpenPosition && isStockTrade && (
+            unrealizedPnl != null ? (
+              <DetailRow
+                label="Unrealized P&L"
+                value={
+                  <div className="flex items-center gap-2">
+                    <span className={pnlColor(unrealizedPnl)}>
+                      {unrealizedPnl >= 0 ? '+' : ''}{fmt.currency(unrealizedPnl)}
+                    </span>
+                    {unrealizedPercent != null && (
+                      <span className={cn(pnlColor(unrealizedPnl), 'text-xs')}>
+                        ({unrealizedPercent >= 0 ? '+' : ''}{fmt.percent(unrealizedPercent)})
+                      </span>
+                    )}
+                  </div>
+                }
+              />
+            ) : (
+              <DetailRow
+                label="Unrealized P&L"
+                value={<span className="text-xs text-muted-foreground">Price data unavailable</span>}
+              />
+            )
           )}
           {trade.fees != null && <DetailRow label="Fees" value={fmt.currency(trade.fees)} />}
           {trade.gross_pnl != null && <DetailRow label="Gross P&L" value={fmt.currency(trade.gross_pnl)} valueClass={pnlColor(trade.gross_pnl)} />}
@@ -368,9 +404,9 @@ export function TradeDetailPage() {
           </Card>
         )}
 
-        {/* AI Analysis */}
+        {/* AI Analysis — Closed Trade Grade */}
         {(trade.ai_grade || trade.ai_grade_rationale) && (
-          <Card title="AI Analysis" icon={Brain}>
+          <Card title="AI Grade" icon={Brain}>
             {trade.ai_setup_score != null && (
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-xs text-muted-foreground">Setup Score</span>
@@ -401,6 +437,87 @@ export function TradeDetailPage() {
                 ))}
               </ul>
             )}
+          </Card>
+        )}
+
+        {/* AI Analysis — Open Trade */}
+        {(trade.status === 'open' || trade.status === 'partial') && analysisResult && (
+          <Card title="AI Analysis" icon={Brain}>
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">Market Overview</p>
+                <p className="text-sm text-foreground/80">{analysisResult.market_overview}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Current Price Est.</p>
+                  <p className="text-sm font-mono font-bold">{fmt.currency(analysisResult.current_price_estimate, 4)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Est. P&L</p>
+                  <p className={cn('text-sm font-mono font-bold', pnlColor(analysisResult.estimated_pnl))}>
+                    {analysisResult.estimated_pnl >= 0 ? '+' : ''}{fmt.currency(analysisResult.estimated_pnl)}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">Est. Return</p>
+                <p className={cn('text-sm font-mono font-bold', pnlColor(analysisResult.estimated_pnl))}>
+                  {analysisResult.estimated_pnl_percent >= 0 ? '+' : ''}{analysisResult.estimated_pnl_percent.toFixed(2)}%
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">Bullish Factors</p>
+                <ul className="space-y-1">
+                  {analysisResult.bullish_factors.map((f, i) => (
+                    <li key={i} className="text-xs text-[#00d4a1] flex items-start gap-2">
+                      <span>+</span> {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">Bearish Factors</p>
+                <ul className="space-y-1">
+                  {analysisResult.bearish_factors.map((f, i) => (
+                    <li key={i} className="text-xs text-[#ff4d6d] flex items-start gap-2">
+                      <span>−</span> {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">Technical Outlook</p>
+                <p className="text-sm text-foreground/80">{analysisResult.technical_outlook}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Recommendation</p>
+                  <p className="text-sm font-mono font-bold capitalize text-primary">{analysisResult.recommendation}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Confidence</p>
+                  <p className="text-sm font-mono font-bold capitalize">{analysisResult.confidence}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/50">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Resistance</p>
+                  <p className="text-sm font-mono">{fmt.currency(analysisResult.next_key_levels.resistance, 2)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Support</p>
+                  <p className="text-sm font-mono">{fmt.currency(analysisResult.next_key_levels.support, 2)}</p>
+                </div>
+              </div>
+            </div>
           </Card>
         )}
       </div>

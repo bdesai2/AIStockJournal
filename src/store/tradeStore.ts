@@ -247,7 +247,9 @@ export const useTradeStore = create<TradeState>((set, get) => ({
       .single()
 
     if (error) {
-      set({ error: error.message })
+      const errorMsg = error.message || JSON.stringify(error)
+      console.error('❌ addExecution error:', errorMsg, error)
+      set({ error: errorMsg })
       return false
     }
 

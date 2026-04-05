@@ -47,6 +47,9 @@ const tradeSchema = z.object({
   risk_percent: z.coerce.number().nonnegative().optional().transform((v) => v === 0 ? undefined : v),
 
   // Options
+  option_type: z.string().nullable().optional()
+    .transform((v) => v === '' || !v ? undefined : v)
+    .pipe(z.enum(['call', 'put']).optional()),
   option_legs: z.array(optionLegSchema).optional(),
   option_strategy: nullableString,
 
@@ -59,19 +62,52 @@ const tradeSchema = z.object({
   exit_notes: nullableString,
   mistakes: nullableString,
   lessons: nullableString,
-  emotional_state: z.enum(['calm', 'fomo', 'fearful', 'confident', 'impulsive', 'disciplined']).optional(),
+  emotional_state: z.string().optional()
+    .transform((v) => v === '' || !v ? undefined : v)
+    .pipe(z.enum(['calm', 'fomo', 'fearful', 'confident', 'impulsive', 'disciplined']).optional()),
   execution_quality: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(),
 
   // Categorization
   strategy_tags: z.array(z.string()).default([]),
   custom_tags: z.array(z.string()).optional(),
   sector: nullableString,
-  market_conditions: z.enum(['trending_up', 'trending_down', 'ranging', 'volatile']).optional(),
-  timeframe: z.enum(['1m', '5m', '15m', '1h', '4h', 'D', 'W']).optional(),
-  duration: z.enum(['scalp', 'swing', 'long_term']).optional(),
+  market_conditions: z.string().optional()
+    .transform((v) => v === '' || !v ? undefined : v)
+    .pipe(z.enum(['trending_up', 'trending_down', 'ranging', 'volatile']).optional()),
+  timeframe: z.string().optional()
+    .transform((v) => v === '' || !v ? undefined : v)
+    .pipe(z.enum(['1m', '5m', '15m', '1h', '4h', 'D', 'W']).optional()),
+  duration: z.string().nullable().optional()
+    .transform((v) => v === '' || !v ? undefined : v)
+    .pipe(z.enum(['scalp', 'swing', 'long_term']).optional()),
 })
 
 type TradeFormData = z.infer<typeof tradeSchema>
+
+// ─── Common Sectors for Typeahead ────────────────────────────────────────────
+
+const COMMON_SECTORS = [
+  'Technology',
+  'Healthcare',
+  'Financials',
+  'Energy',
+  'Materials',
+  'Consumer Cyclical',
+  'Consumer Defensive',
+  'Industrials',
+  'Utilities',
+  'Real Estate',
+  'Communication Services',
+  'Semiconductors',
+  'Software',
+  'Financial Services',
+  'Banks',
+  'Oil & Gas',
+  'Metals & Mining',
+  'Aerospace & Defense',
+  'Agriculture',
+  'Transportation',
+]
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -263,6 +299,8 @@ export function NewTradePage() {
       execution_quality: data.execution_quality as 1 | 2 | 3 | 4 | 5 | undefined,
       // Align form tags (strings) with the StrategyTag literal union
       strategy_tags: (data.strategy_tags ?? []) as StrategyTag[],
+      // Only include option_type for option trades
+      option_type: data.asset_type === 'option' ? data.option_type : undefined,
     }
 
     if (isEdit && id) {
@@ -452,14 +490,42 @@ export function NewTradePage() {
         {/* ── Option Legs ── */}
         {assetType === 'option' && (
           <Section title="Option Legs">
-            <div className="mb-3">
-              <Field label="Strategy Name">
-                <input
-                  {...register('option_strategy')}
-                  placeholder="e.g. Bull Call Spread"
-                  className={inputClass}
-                />
-              </Field>
+            <div className="mb-3 flex gap-4 items-end">
+              <div className="flex-1">
+                <Field label="Strategy Name">
+                  <input
+                    {...register('option_strategy')}
+                    placeholder="e.g. Bull Call Spread"
+                    className={inputClass}
+                  />
+                </Field>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setValue('option_type', 'call')}
+                  className={cn(
+                    'px-4 py-2 rounded-md text-sm font-medium transition-colors border',
+                    watch('option_type') === 'call'
+                      ? 'bg-profit-muted text-[#00d4a1] border-[#00d4a1]/50'
+                      : 'bg-input border-border text-muted-foreground hover:border-border/80'
+                  )}
+                >
+                  CALL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setValue('option_type', 'put')}
+                  className={cn(
+                    'px-4 py-2 rounded-md text-sm font-medium transition-colors border',
+                    watch('option_type') === 'put'
+                      ? 'bg-loss-muted text-[#ff4d6d] border-[#ff4d6d]/50'
+                      : 'bg-input border-border text-muted-foreground hover:border-border/80'
+                  )}
+                >
+                  PUT
+                </button>
+              </div>
             </div>
 
             {optionLegs.map((leg, i) => (
@@ -546,7 +612,17 @@ export function NewTradePage() {
             </Field>
             <Field label="Sector">
               <div className="relative">
-                <input {...register('sector')} placeholder="e.g. Technology" className={inputClass} />
+                <input
+                  {...register('sector')}
+                  placeholder="e.g. Technology"
+                  className={inputClass}
+                  list="sector-list"
+                />
+                <datalist id="sector-list">
+                  {COMMON_SECTORS.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
                 {sectorLoading && (
                   <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
                 )}

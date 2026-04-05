@@ -106,6 +106,7 @@ export interface Trade {
   risk_percent?: number      // % of account risked
 
   // Options (only when asset_type === 'option')
+  option_type?: OptionType   // call | put (quick reference, independent of legs)
   option_legs?: OptionLeg[]
   option_strategy?: string   // e.g. "Bull Call Spread", "Iron Condor"
 

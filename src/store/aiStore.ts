@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { aiApi, type SetupCheckResult, type WeeklyDigestResult } from '@/lib/ai'
+import { aiApi, type SetupCheckResult, type WeeklyDigestResult, type TradeAnalysisResult } from '@/lib/ai'
 import { useTradeStore } from '@/store/tradeStore'
 import type { Trade } from '@/types'
 
@@ -21,14 +21,21 @@ interface AiState {
   digestError: string | null
   digestResult: WeeklyDigestResult | null
 
+  // Feature 4: Trade Analysis (for open trades)
+  analysisLoading: boolean
+  analysisError: string | null
+  analysisResult: TradeAnalysisResult | null
+
   // Actions
   gradeTrade: (trade: Trade) => Promise<void>
   runSetupCheck: (params: Parameters<typeof aiApi.setupCheck>[0]) => Promise<void>
   clearSetupResult: () => void
   runWeeklyDigest: (trades: Trade[]) => Promise<void>
+  analyzeOpenTrade: (trade: Trade) => Promise<void>
   clearGradeError: () => void
   clearSetupError: () => void
   clearDigestError: () => void
+  clearAnalysisError: () => void
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -45,6 +52,10 @@ export const useAiStore = create<AiState>((set) => ({
   digestLoading: false,
   digestError: null,
   digestResult: null,
+
+  analysisLoading: false,
+  analysisError: null,
+  analysisResult: null,
 
   gradeTrade: async (trade) => {
     // If we already have a non-expired grade, just reuse it
@@ -112,7 +123,21 @@ export const useAiStore = create<AiState>((set) => ({
     }
   },
 
+  analyzeOpenTrade: async (trade) => {
+    set({ analysisLoading: true, analysisError: null, analysisResult: null })
+    try {
+      const result = await aiApi.tradeAnalysis(trade)
+      set({ analysisLoading: false, analysisResult: result })
+    } catch (err) {
+      set({
+        analysisLoading: false,
+        analysisError: err instanceof Error ? err.message : 'Trade analysis failed',
+      })
+    }
+  },
+
   clearGradeError: () => set({ gradeError: null }),
   clearSetupError: () => set({ setupError: null }),
   clearDigestError: () => set({ digestError: null }),
+  clearAnalysisError: () => set({ analysisError: null, analysisResult: null }),
 }))
