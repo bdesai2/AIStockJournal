@@ -4,8 +4,6 @@ import type {
   TradeExecution,
   OptionLeg,
   AssetType,
-  OptionType,
-  OptionAction,
 } from './index'
 
 describe('Trade Execution Types', () => {
@@ -187,9 +185,9 @@ describe('Trade Execution Types', () => {
 
       expect(trade.asset_type).toBe('option')
       expect(trade.option_strategy).toBe('Bull Call Spread')
-      expect(trade.option_legs).toHaveLength(2)
-      expect(trade.option_legs[0].action).toBe('buy')
-      expect(trade.option_legs[1].action).toBe('sell')
+      expect(trade.option_legs!).toHaveLength(2)
+      expect(trade.option_legs![0].action).toBe('buy')
+      expect(trade.option_legs![1].action).toBe('sell')
     })
 
     it('supports iron condor (4-leg option strategy)', () => {
@@ -244,9 +242,9 @@ describe('Trade Execution Types', () => {
         updated_at: '2024-01-01T09:30:00Z',
       }
 
-      expect(trade.option_legs).toHaveLength(4)
+      expect(trade.option_legs!).toHaveLength(4)
       expect(trade.option_strategy).toBe('Iron Condor')
-      const allActions = trade.option_legs.map(l => l.action)
+      const allActions = trade.option_legs!.map(l => l.action)
       expect(allActions).toEqual(['sell', 'buy', 'sell', 'buy'])
     })
   })

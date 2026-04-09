@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { aiApi, type SetupCheckResult, type WeeklyDigestResult, type TradeAnalysisResult } from '@/lib/ai'
 import { useTradeStore } from '@/store/tradeStore'
+import { db, supabase } from '@/lib/supabase'
 import type { Trade } from '@/types'
 
 // ─── State Interface ──────────────────────────────────────────────────────────
@@ -27,7 +28,7 @@ interface AiState {
   analysisResult: TradeAnalysisResult | null
 
   // Actions
-  gradeTrade: (trade: Trade) => Promise<void>
+  gradeTrade: (trade: Trade, opts?: { force?: boolean }) => Promise<void>
   runSetupCheck: (params: Parameters<typeof aiApi.setupCheck>[0]) => Promise<void>
   clearSetupResult: () => void
   runWeeklyDigest: (trades: Trade[]) => Promise<void>
@@ -57,10 +58,13 @@ export const useAiStore = create<AiState>((set) => ({
   analysisError: null,
   analysisResult: null,
 
-  gradeTrade: async (trade) => {
-    // If we already have a non-expired grade, just reuse it
+  gradeTrade: async (trade, opts) => {
+    const force = opts?.force ?? false
+
+    // If we already have a non-expired grade and this is not an explicit re-grade,
+    // just reuse the cached result to avoid unnecessary AI calls.
     const now = new Date()
-    if (trade.ai_grade && trade.ai_expires_at) {
+    if (!force && trade.ai_grade && trade.ai_expires_at) {
       const expiresAt = new Date(trade.ai_expires_at)
       if (expiresAt > now) {
         set({ gradeLoading: false, gradeError: null, lastGradedId: trade.id })
@@ -115,6 +119,24 @@ export const useAiStore = create<AiState>((set) => ({
     try {
       const result = await aiApi.weeklyDigest(trades)
       set({ digestLoading: false, digestResult: result })
+
+      // Save to database
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        if (userError || !user?.id) throw new Error('User not authenticated')
+
+        await db.digests().insert({
+          user_id: user.id,
+          positive_patterns: result.positive_patterns,
+          negative_patterns: result.negative_patterns,
+          actionable_lesson: result.actionable_lesson,
+          trade_count: trades.length,
+          generated_at: new Date().toISOString(),
+        })
+      } catch (dbErr) {
+        console.error('Failed to save digest to DB:', dbErr)
+        // Don't fail the UI — digest is still shown, just not persisted
+      }
     } catch (err) {
       set({
         digestLoading: false,

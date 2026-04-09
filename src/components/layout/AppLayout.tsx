@@ -1,4 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { version } from '../../../package.json'
 import {
   LayoutDashboard,
   BookOpen,
@@ -44,7 +45,7 @@ export function AppLayout() {
           </div>
           <div>
             <p className="font-display text-lg tracking-wider leading-none">STONKJOURNAL</p>
-            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">v0.2.0 · M2</p>
+            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">v{version} · M3</p>
           </div>
         </div>
 

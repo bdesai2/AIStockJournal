@@ -24,6 +24,7 @@ export const db = {
   journals: () => supabase.from('daily_journals'),
   screenshots: () => supabase.from('trade_screenshots'),
   executions: () => supabase.from('trade_executions'),
+  digests: () => supabase.from('weekly_digests'),
 } as const
 
 // ─── Storage helpers ───────────────────────────────────────────────────────────

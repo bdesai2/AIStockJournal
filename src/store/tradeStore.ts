@@ -19,6 +19,11 @@ interface TradeState {
   deleteScreenshot: (screenshotId: string, storagePath: string) => Promise<boolean>
   // Execution actions
   addExecution: (userId: string, tradeId: string, exec: Omit<TradeExecution, 'id' | 'trade_id' | 'user_id' | 'created_at'>) => Promise<boolean>
+  updateExecution: (
+    executionId: string,
+    tradeId: string,
+    patch: Partial<Omit<TradeExecution, 'id' | 'trade_id' | 'user_id' | 'created_at'>>
+  ) => Promise<boolean>
   deleteExecution: (executionId: string, tradeId: string) => Promise<boolean>
   clearError: () => void
 }
@@ -267,6 +272,36 @@ export const useTradeStore = create<TradeState>((set, get) => ({
           ...t,
           has_executions: true,
           executions: [...(t.executions ?? []), data as TradeExecution],
+        }
+        return applyExecutions(updated)
+      }),
+    }))
+    return true
+  },
+
+  updateExecution: async (executionId, tradeId, patch) => {
+    const { data, error } = await db
+      .executions()
+      .update({ ...patch })
+      .eq('id', executionId)
+      .select()
+      .single()
+
+    if (error) {
+      const errorMsg = error.message || JSON.stringify(error)
+      console.error('❌ updateExecution error:', errorMsg, error)
+      set({ error: errorMsg })
+      return false
+    }
+
+    set((state) => ({
+      trades: state.trades.map((t) => {
+        if (t.id !== tradeId) return t
+        const updated = {
+          ...t,
+          executions: (t.executions ?? []).map((e) =>
+            e.id === executionId ? (data as TradeExecution) : e
+          ),
         }
         return applyExecutions(updated)
       }),

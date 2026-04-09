@@ -216,6 +216,25 @@ export interface DailyJournal {
   updated_at: string
 }
 
+// ─── AI / Weekly Digest ───────────────────────────────────────────────────────
+
+export interface DigestPattern {
+  pattern: string
+  detail: string
+}
+
+export interface WeeklyDigest {
+  id: string
+  user_id: string
+  positive_patterns: DigestPattern[]
+  negative_patterns: DigestPattern[]
+  actionable_lesson: string
+  trade_count?: number
+  generated_at: string
+  created_at: string
+  updated_at: string
+}
+
 // ─── Analytics / Stats ────────────────────────────────────────────────────────
 
 export interface TradeStats {
@@ -233,4 +252,22 @@ export interface TradeStats {
   avg_holding_period: number
   by_asset_type: Record<AssetType, { count: number; pnl: number }>
   by_strategy: Record<string, { count: number; pnl: number; win_rate: number }>
+  // Dimensional Analysis (M4)
+  by_sector: Record<string, { count: number; pnl: number; win_rate: number }>
+  by_timeframe: Record<string, { count: number; pnl: number; win_rate: number }>
+  by_duration: Record<string, { count: number; pnl: number; win_rate: number }>
+  by_market_condition: Record<string, { count: number; pnl: number; win_rate: number }>
+  // Time-Based Analysis (M4)
+  by_duration_impact: Record<string, { count: number; pnl: number; win_rate: number }>
+  by_time_of_day: Record<string, { count: number; pnl: number; win_rate: number }>
+  // Advanced Analysis (M4)
+  by_emotional_state: Record<string, { count: number; pnl: number; win_rate: number }>
+  by_execution_quality: Record<string, { count: number; pnl: number; win_rate: number }>
+  // Advanced metrics (M4)
+  sharpe_ratio: number | null
+  sortino_ratio: number | null
+  max_drawdown: number
+  recovery_factor: number | null
+  max_consecutive_wins: number
+  max_consecutive_losses: number
 }

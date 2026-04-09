@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Edit2, Trash2, ArrowUpRight, ArrowDownRight,
   TrendingUp, TrendingDown, Calendar, Tag, Brain, Image, Sparkles, Loader2,
+  Upload, X,
 } from 'lucide-react'
 import { ExecutionsCard } from '@/components/trades/ExecutionsCard'
 import { useAuthStore } from '@/store/authStore'
@@ -36,9 +37,11 @@ export function TradeDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuthStore()
-  const { trades, fetchTrades, deleteTrade, setSelectedTrade } = useTradeStore()
+  const { trades, fetchTrades, deleteTrade, setSelectedTrade, uploadScreenshot, deleteScreenshot } = useTradeStore()
   const { gradeTrade, gradeLoading, gradeError, clearGradeError, analyzeOpenTrade, analysisLoading, analysisError, analysisResult, clearAnalysisError } = useAiStore()
   const [currentPrice, setCurrentPrice] = useState<number | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (user?.id && trades.length === 0) fetchTrades(user.id)
@@ -123,6 +126,33 @@ export function TradeDetailPage() {
     }
   }
 
+  const handleScreenshotUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user?.id) return
+    const files = Array.from(e.target.files ?? [])
+    if (!files.length) return
+
+    setUploading(true)
+    setUploadError(null)
+
+    for (const file of files) {
+      const ok = await uploadScreenshot(user.id, trade.id, file)
+      if (!ok) {
+        setUploadError('Failed to upload one or more screenshots. Please try again.')
+        break
+      }
+    }
+
+    setUploading(false)
+    e.target.value = ''
+  }
+
+  const handleScreenshotDelete = async (screenshotId: string, storagePath: string) => {
+    const ok = await deleteScreenshot(screenshotId, storagePath)
+    if (!ok) {
+      setUploadError('Failed to delete screenshot. Please try again.')
+    }
+  }
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-5 animate-in">
       {/* Header */}
@@ -185,7 +215,7 @@ export function TradeDetailPage() {
         <div className="flex gap-2 flex-wrap">
           {trade.status === 'closed' && (
             <button
-              onClick={() => gradeTrade(trade)}
+              onClick={() => gradeTrade(trade, { force: !!trade.ai_grade })}
               disabled={gradeLoading}
               className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-primary/40 text-sm text-primary hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -526,22 +556,63 @@ export function TradeDetailPage() {
       <ExecutionsCard trade={trade} />
 
       {/* Screenshots */}
-      {trade.screenshots && trade.screenshots.length > 0 && (
-        <Card title="Charts & Screenshots" icon={Image}>
-          <div className="flex flex-wrap gap-3">
-            {trade.screenshots.map((s) => (
-              <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer">
-                <img
-                  src={s.url}
-                  alt={s.label ?? 'screenshot'}
-                  className="w-40 h-28 object-cover rounded-md border border-border hover:border-primary/50 transition-colors"
-                />
-                {s.label && <p className="text-xs text-muted-foreground mt-1">{s.label}</p>}
-              </a>
-            ))}
+      <Card title="Charts & Screenshots" icon={Image}>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 w-fit cursor-pointer px-4 py-2 rounded-md border border-dashed border-border hover:border-primary/50 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <Upload className="w-4 h-4" />
+              Add Screenshots
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handleScreenshotUpload}
+              />
+            </label>
+            {uploading && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Uploading...
+              </span>
+            )}
           </div>
-        </Card>
-      )}
+
+          {uploadError && (
+            <p className="text-xs text-destructive bg-destructive/10 border border-destructive/30 px-2 py-1.5 rounded">
+              {uploadError}
+            </p>
+          )}
+
+          {trade.screenshots && trade.screenshots.length > 0 ? (
+            <div className="flex flex-wrap gap-3">
+              {trade.screenshots.map((s) => (
+                <div key={s.id} className="relative group">
+                  <a href={s.url} target="_blank" rel="noopener noreferrer">
+                    <img
+                      src={s.url}
+                      alt={s.label ?? 'screenshot'}
+                      className="w-40 h-28 object-cover rounded-md border border-border hover:border-primary/50 transition-colors"
+                    />
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => handleScreenshotDelete(s.id, s.storage_path)}
+                    className="absolute top-1 right-1 bg-background/80 rounded-full p-0.5 hover:bg-background transition-colors opacity-0 group-hover:opacity-100"
+                  >
+                    <X className="w-3 h-3 text-destructive" />
+                  </button>
+                  {s.label && <p className="text-xs text-muted-foreground mt-1">{s.label}</p>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No screenshots yet. Use "Add Screenshots" to attach entry/exit charts.
+            </p>
+          )}
+        </div>
+      </Card>
     </div>
   )
 }

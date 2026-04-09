@@ -162,7 +162,7 @@ All tables use Row Level Security — users can only access their own data. The 
 | Milestone | Status |
 |---|---|
 | M1: Foundation + Auth + CRUD | ✅ Complete |
-| M2: Analytics dashboard + Calendar journal | ⬜ Next |
-| M3: AI trade grading (Claude API) | ⬜ |
-| M4: Advanced analytics + heatmaps | ⬜ |
+| M2: Analytics dashboard + Calendar journal | ✅ Complete |
+| M3: AI trade grading (Claude API) | ✅ Complete |
+| M4: Advanced analytics + heatmaps | ⬜ Next |
 | M5: PWA + mobile polish | ⬜ |

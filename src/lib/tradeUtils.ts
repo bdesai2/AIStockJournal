@@ -128,6 +128,38 @@ export function calcSellAmount(trade: Partial<Trade>): number | null {
   return trade.exit_price * trade.quantity * multiplier
 }
 
+// ─── Helper: Calculate mean and standard deviation ─────────────────────────────
+
+function calculateMean(values: number[]): number {
+  if (values.length === 0) return 0
+  return values.reduce((a, b) => a + b, 0) / values.length
+}
+
+function calculateStdDev(values: number[], mean: number): number {
+  if (values.length < 2) return 0
+  const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length
+  return Math.sqrt(variance)
+}
+
+// ─── Dimension breakdown helper ────────────────────────────────────────────────
+
+function buildDimension(
+  trades: Trade[],
+  keys: string[],
+  getKey: (t: Trade) => string | undefined
+): Record<string, { count: number; pnl: number; win_rate: number }> {
+  return keys.reduce((acc, key) => {
+    const group = trades.filter((t) => getKey(t) === key)
+    const wins = group.filter((t) => (t.net_pnl ?? 0) > 0)
+    acc[key] = {
+      count: group.length,
+      pnl: group.reduce((s, t) => s + (t.net_pnl ?? 0), 0),
+      win_rate: group.length > 0 ? wins.length / group.length : 0,
+    }
+    return acc
+  }, {} as Record<string, { count: number; pnl: number; win_rate: number }>)
+}
+
 // ─── Stats aggregation ────────────────────────────────────────────────────────
 
 export function aggregateStats(trades: Trade[]): TradeStats {
@@ -166,7 +198,143 @@ export function aggregateStats(trades: Trade[]): TradeStats {
     {} as TradeStats['by_strategy']
   )
 
-  const rMultiples = closed.filter((t) => t.r_multiple != null).map((t) => t.r_multiple as number)
+  // ─── Dimensional Analysis (M4) ────────────────────────────────────────────────
+
+  // Sector (dynamic — free-form string)
+  const allSectors = [...new Set(closed.map((t) => t.sector).filter(Boolean))] as string[]
+  const by_sector = allSectors.reduce((acc, key) => {
+    const group = closed.filter((t) => t.sector === key)
+    const wins = group.filter((t) => (t.net_pnl ?? 0) > 0)
+    acc[key] = {
+      count: group.length,
+      pnl: group.reduce((s, t) => s + (t.net_pnl ?? 0), 0),
+      win_rate: group.length > 0 ? wins.length / group.length : 0,
+    }
+    return acc
+  }, {} as Record<string, { count: number; pnl: number; win_rate: number }>)
+
+  // Timeframe, Duration, Market Condition (enum-bounded)
+  const by_timeframe = buildDimension(closed, ['1m','5m','15m','1h','4h','D','W'], (t) => t.timeframe)
+  const by_duration = buildDimension(closed, ['scalp','swing','long_term'], (t) => t.duration)
+  const by_market_condition = buildDimension(closed, ['trending_up','trending_down','ranging','volatile'], (t) => t.market_conditions)
+
+  // ─── Time-Based Analysis (M4) ────────────────────────────────────────────────
+
+  // Duration Impact: group by holding_period_days
+  const getDurationBucket = (days: number | undefined): string => {
+    if (days == null || days < 1) return 'intraday'
+    if (days <= 5)  return '1-5d'
+    if (days <= 20) return '6-20d'
+    if (days <= 60) return '21-60d'
+    return '60d+'
+  }
+  const DURATION_BUCKETS = ['intraday', '1-5d', '6-20d', '21-60d', '60d+'] as const
+  const by_duration_impact = buildDimension(closed, [...DURATION_BUCKETS], (t) => getDurationBucket(t.holding_period_days))
+
+  // Time of Day: group by entry_date hour
+  const getTimeOfDayBucket = (dateStr: string): string => {
+    const h = new Date(dateStr).getHours()
+    if (h < 4)  return 'overnight'
+    if (h < 9)  return 'pre-market'
+    if (h < 11) return 'open'
+    if (h < 14) return 'midday'
+    if (h < 16) return 'afternoon'
+    return 'after-hours'
+  }
+  const TOD_BUCKETS = ['overnight', 'pre-market', 'open', 'midday', 'afternoon', 'after-hours'] as const
+  const by_time_of_day = buildDimension(closed, [...TOD_BUCKETS], (t) => getTimeOfDayBucket(t.entry_date))
+
+  // ─── Advanced Analysis (M4) ───────────────────────────────────────────────────
+
+  // Emotional State: group by emotional_state
+  const EMOTIONAL_STATES = ['calm', 'fomo', 'fearful', 'confident', 'impulsive', 'disciplined'] as const
+  const by_emotional_state = buildDimension(closed, [...EMOTIONAL_STATES], (t) => t.emotional_state)
+
+  // Execution Quality: group by execution_quality (1-5 rating)
+  const EXECUTION_QUALITIES = ['1', '2', '3', '4', '5'] as const
+  const by_execution_quality = buildDimension(
+    closed,
+    [...EXECUTION_QUALITIES],
+    (t) => t.execution_quality ? String(t.execution_quality) : undefined
+  )
+
+  const rMultiples = closed
+    .map((t) => t.r_multiple ?? calcRMultiple(t))
+    .filter((r) => r != null) as number[]
+
+  // ─── Advanced Metrics (M4) ───────────────────────────────────────────────────
+
+  // Sharpe Ratio: mean(rMultiples) / stdev(rMultiples)
+  let sharpe_ratio: number | null = null
+  if (rMultiples.length >= 2) {
+    const meanR = calculateMean(rMultiples)
+    const stdR = calculateStdDev(rMultiples, meanR)
+    sharpe_ratio = stdR > 0 ? meanR / stdR : null
+  }
+
+  // Sortino Ratio: mean(rMultiples) / downside_stdev(rMultiples)
+  let sortino_ratio: number | null = null
+  if (rMultiples.length >= 2) {
+    const meanR = calculateMean(rMultiples)
+    const downside = rMultiples.filter((r) => r < 0)
+    if (downside.length > 0) {
+      const downsideStd = calculateStdDev(downside, calculateMean(downside))
+      sortino_ratio = downsideStd > 0 ? meanR / downsideStd : null
+    }
+  }
+
+  // Max Drawdown: largest peak-to-trough from cumulative P&L
+  let max_drawdown = 0
+  if (closed.length > 0) {
+    const sorted = closed.sort((a, b) => {
+      const aDate = new Date(a.exit_date || a.entry_date).getTime()
+      const bDate = new Date(b.exit_date || b.entry_date).getTime()
+      return aDate - bDate
+    })
+    let cumulative = 0
+    let peak = 0
+    for (const trade of sorted) {
+      cumulative += trade.net_pnl ?? 0
+      peak = Math.max(peak, cumulative)
+      const drawdown = peak - cumulative
+      max_drawdown = Math.max(max_drawdown, drawdown)
+    }
+  }
+
+  // Recovery Factor: total_pnl / max_drawdown
+  let recovery_factor: number | null = null
+  if (max_drawdown > 0) {
+    recovery_factor = totalPnl / max_drawdown
+  }
+
+  // Consecutive Wins/Losses
+  let max_consecutive_wins = 0
+  let max_consecutive_losses = 0
+  if (closed.length > 0) {
+    const sorted = closed.sort((a, b) => {
+      const aDate = new Date(a.exit_date || a.entry_date).getTime()
+      const bDate = new Date(b.exit_date || b.entry_date).getTime()
+      return aDate - bDate
+    })
+    let currentWins = 0
+    let currentLosses = 0
+    for (const trade of sorted) {
+      const pnl = trade.net_pnl ?? 0
+      if (pnl > 0) {
+        currentWins++
+        max_consecutive_wins = Math.max(max_consecutive_wins, currentWins)
+        currentLosses = 0
+      } else if (pnl < 0) {
+        currentLosses++
+        max_consecutive_losses = Math.max(max_consecutive_losses, currentLosses)
+        currentWins = 0
+      } else {
+        // Break on zero (no P&L)
+        currentWins = 0
+        currentLosses = 0
+      }
+    }
+  }
 
   return {
     total_trades: closed.length,
@@ -186,6 +354,20 @@ export function aggregateStats(trades: Trade[]): TradeStats {
         : 0,
     by_asset_type,
     by_strategy,
+    by_sector,
+    by_timeframe,
+    by_duration,
+    by_market_condition,
+    by_duration_impact,
+    by_time_of_day,
+    by_emotional_state,
+    by_execution_quality,
+    sharpe_ratio,
+    sortino_ratio,
+    max_drawdown,
+    recovery_factor,
+    max_consecutive_wins,
+    max_consecutive_losses,
   }
 }
 

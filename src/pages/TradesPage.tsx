@@ -9,22 +9,83 @@ import { calcPnlPercent } from '@/lib/tradeUtils'
 
 type SortKey = 'entry_date' | 'net_pnl' | 'pnl_percent' | 'r_multiple' | 'ticker'
 type SortDir = 'asc' | 'desc'
+type GradeFilter = 'all' | 'A' | 'B' | 'C' | 'D' | 'F' | '-'
+
+const FILTER_STORAGE_KEY = 'trades_filters_v1'
+
+function getInitialFilters(): {
+  search: string
+  assetFilter: AssetType | 'all'
+  statusFilter: TradeStatus | 'all'
+  dirFilter: 'long' | 'short' | 'all'
+  gradeFilter: GradeFilter
+  sortKey: SortKey
+  sortDir: SortDir
+} {
+  const defaults: {
+    search: string
+    assetFilter: AssetType | 'all'
+    statusFilter: TradeStatus | 'all'
+    dirFilter: 'long' | 'short' | 'all'
+    gradeFilter: GradeFilter
+    sortKey: SortKey
+    sortDir: SortDir
+  } = {
+    search: '',
+    assetFilter: 'all',
+    statusFilter: 'all',
+    dirFilter: 'all',
+    gradeFilter: 'all',
+    sortKey: 'entry_date',
+    sortDir: 'desc',
+  }
+
+  if (typeof window === 'undefined') return defaults
+
+  try {
+    const raw = window.localStorage.getItem(FILTER_STORAGE_KEY)
+    if (!raw) return defaults
+    const saved = JSON.parse(raw) as Partial<typeof defaults>
+    return { ...defaults, ...saved }
+  } catch {
+    return defaults
+  }
+}
 
 export function TradesPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const { trades, loading, fetchTrades } = useTradeStore()
 
-  const [search, setSearch] = useState('')
-  const [assetFilter, setAssetFilter] = useState<AssetType | 'all'>('all')
-  const [statusFilter, setStatusFilter] = useState<TradeStatus | 'all'>('all')
-  const [dirFilter, setDirFilter] = useState<'long' | 'short' | 'all'>('all')
-  const [sortKey, setSortKey] = useState<SortKey>('entry_date')
-  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [search, setSearch] = useState(() => getInitialFilters().search)
+  const [assetFilter, setAssetFilter] = useState<AssetType | 'all'>(() => getInitialFilters().assetFilter)
+  const [statusFilter, setStatusFilter] = useState<TradeStatus | 'all'>(() => getInitialFilters().statusFilter)
+  const [dirFilter, setDirFilter] = useState<'long' | 'short' | 'all'>(() => getInitialFilters().dirFilter)
+  const [gradeFilter, setGradeFilter] = useState<GradeFilter>(() => getInitialFilters().gradeFilter)
+  const [sortKey, setSortKey] = useState<SortKey>(() => getInitialFilters().sortKey)
+  const [sortDir, setSortDir] = useState<SortDir>(() => getInitialFilters().sortDir)
 
   useEffect(() => {
     if (user?.id) fetchTrades(user.id)
   }, [user?.id, fetchTrades])
+
+  // Persist filters/sort whenever they change
+  useEffect(() => {
+    const payload = {
+      search,
+      assetFilter,
+      statusFilter,
+      dirFilter,
+      gradeFilter,
+      sortKey,
+      sortDir,
+    }
+    try {
+      window.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(payload))
+    } catch {
+      // ignore storage failures
+    }
+  }, [search, assetFilter, statusFilter, dirFilter, gradeFilter, sortKey, sortDir])
 
   const filtered = useMemo(() => {
     let result = [...trades]
@@ -41,6 +102,13 @@ export function TradesPage() {
     if (assetFilter !== 'all') result = result.filter((t) => t.asset_type === assetFilter)
     if (statusFilter !== 'all') result = result.filter((t) => t.status === statusFilter)
     if (dirFilter !== 'all') result = result.filter((t) => t.direction === dirFilter)
+    if (gradeFilter !== 'all') {
+      if (gradeFilter === '-') {
+        result = result.filter((t) => !t.ai_grade)
+      } else {
+        result = result.filter((t) => t.ai_grade?.startsWith(gradeFilter))
+      }
+    }
 
     result.sort((a, b) => {
       let av: number | string = 0
@@ -73,7 +141,7 @@ export function TradesPage() {
     })
 
     return result
-  }, [trades, search, assetFilter, statusFilter, dirFilter, sortKey, sortDir])
+  }, [trades, search, assetFilter, statusFilter, dirFilter, gradeFilter, sortKey, sortDir])
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -110,9 +178,9 @@ export function TradesPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 p-4 rounded-lg border border-border bg-card">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="p-4 rounded-lg border border-border bg-card space-y-3">
+        {/* Search (full-width) */}
+        <div className="relative w-full">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <input
             value={search}
@@ -122,50 +190,70 @@ export function TradesPage() {
           />
         </div>
 
-        <Filter className="w-4 h-4 text-muted-foreground self-center" />
+        {/* Filter buttons row */}
+        <div className="flex flex-wrap items-center gap-3">
+          <Filter className="w-4 h-4 text-muted-foreground" />
 
-        {/* Asset filter */}
-        {(['all', 'stock', 'option', 'etf', 'crypto'] as const).map((v) => (
-          <button
-            key={v}
-            onClick={() => setAssetFilter(v)}
-            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-              assetFilter === v ? 'bg-primary text-primary-foreground' : 'bg-input border border-border text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {v === 'all' ? 'All Assets' : v.toUpperCase()}
-          </button>
-        ))}
+          {/* Asset filter */}
+          {(['all', 'stock', 'option', 'etf', 'crypto'] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setAssetFilter(v)}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                assetFilter === v ? 'bg-primary text-primary-foreground' : 'bg-input border border-border text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {v === 'all' ? 'All Assets' : v.toUpperCase()}
+            </button>
+          ))}
 
-        <div className="w-px bg-border" />
+          <div className="w-px h-6 bg-border" />
 
-        {/* Status */}
-        {(['all', 'open', 'closed', 'partial'] as const).map((v) => (
-          <button
-            key={v}
-            onClick={() => setStatusFilter(v)}
-            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-              statusFilter === v ? 'bg-accent text-foreground border border-primary/50' : 'bg-input border border-border text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {v.charAt(0).toUpperCase() + v.slice(1)}
-          </button>
-        ))}
+          {/* Status */}
+          {(['all', 'open', 'closed', 'partial'] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setStatusFilter(v)}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                statusFilter === v ? 'bg-accent text-foreground border border-primary/50' : 'bg-input border border-border text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {v.charAt(0).toUpperCase() + v.slice(1)}
+            </button>
+          ))}
 
-        <div className="w-px bg-border" />
+          <div className="w-px h-6 bg-border" />
 
-        {/* Direction */}
-        {(['all', 'long', 'short'] as const).map((v) => (
-          <button
-            key={v}
-            onClick={() => setDirFilter(v)}
-            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-              dirFilter === v ? 'bg-accent text-foreground border border-primary/50' : 'bg-input border border-border text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {v.charAt(0).toUpperCase() + v.slice(1)}
-          </button>
-        ))}
+          {/* Direction */}
+          {(['all', 'long', 'short'] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setDirFilter(v)}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                dirFilter === v ? 'bg-accent text-foreground border border-primary/50' : 'bg-input border border-border text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {v.charAt(0).toUpperCase() + v.slice(1)}
+            </button>
+          ))}
+
+          <div className="w-px h-6 bg-border" />
+
+          {/* Grade filter */}
+          {(['all', 'A', 'B', 'C', 'D', 'F', '-'] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setGradeFilter(v)}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                gradeFilter === v
+                  ? 'bg-accent text-foreground border border-primary/50'
+                  : 'bg-input border border-border text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {v === 'all' ? 'All Grades' : v === '-' ? '–' : v}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Table */}
@@ -196,6 +284,9 @@ export function TradesPage() {
           </div>
           <div className="hidden lg:block w-16 text-right">
             <SortBtn k="r_multiple" label="R" />
+          </div>
+          <div className="hidden lg:block w-16 text-right" >
+            <span className="sr-only text-xs text-muted-foreground">Grade</span>
           </div>
         </div>
 

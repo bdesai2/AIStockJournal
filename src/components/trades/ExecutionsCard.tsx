@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PlusCircle, Trash2, TrendingUp, TrendingDown } from 'lucide-react'
+import { PlusCircle, Trash2, TrendingUp, TrendingDown, Edit2 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { calcExecutionsSummary, fmt, pnlColor } from '@/lib/tradeUtils'
@@ -21,12 +21,13 @@ function nowLocal() {
 
 export function ExecutionsCard({ trade }: Props) {
   const { user } = useAuthStore()
-  const { addExecution, deleteExecution } = useTradeStore()
+  const { addExecution, updateExecution, deleteExecution } = useTradeStore()
 
   const [adding, setAdding] = useState(false)
   const [addingDividend, setAddingDividend] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
     action: 'buy' as 'buy' | 'sell',
@@ -38,6 +39,15 @@ export function ExecutionsCard({ trade }: Props) {
   })
   const [dividendForm, setDividendForm] = useState({
     datetime: nowLocal(),
+    dividend: '',
+  })
+
+  const [editForm, setEditForm] = useState({
+    action: 'buy' as 'buy' | 'sell',
+    datetime: nowLocal(),
+    quantity: '',
+    price: '',
+    fee: '',
     dividend: '',
   })
 
@@ -95,6 +105,46 @@ export function ExecutionsCard({ trade }: Props) {
       setDividendForm({ datetime: nowLocal(), dividend: '' })
     } else {
       setError('Failed to save dividend. Check console for details.')
+    }
+  }
+
+  const startEdit = (exec: TradeExecution) => {
+    const d = new Date(exec.datetime)
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+    const local = d.toISOString().slice(0, 16)
+    setEditingId(exec.id)
+    setError(null)
+    setEditForm({
+      action: exec.action,
+      datetime: local,
+      quantity: exec.quantity ? String(exec.quantity) : '',
+      price: exec.price ? String(exec.price) : '',
+      fee: exec.fee != null ? String(exec.fee) : '',
+      dividend: exec.dividend != null ? String(exec.dividend) : '',
+    })
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingId) return
+    if (!editForm.datetime) return
+    setSaving(true)
+    setError(null)
+
+    const patch: Partial<Pick<TradeExecution, 'action' | 'datetime' | 'quantity' | 'price' | 'fee' | 'dividend'>> = {
+      action: editForm.action,
+      datetime: new Date(editForm.datetime).toISOString(),
+      quantity: editForm.quantity ? parseFloat(editForm.quantity) : 0,
+      price: editForm.price ? parseFloat(editForm.price) : 0,
+      fee: editForm.fee ? parseFloat(editForm.fee) : 0,
+      dividend: editForm.dividend ? parseFloat(editForm.dividend) : 0,
+    }
+
+    const success = await updateExecution(editingId, trade.id, patch)
+    setSaving(false)
+    if (success) {
+      setEditingId(null)
+    } else {
+      setError('Failed to update execution. Check console for details.')
     }
   }
 
@@ -205,7 +255,7 @@ export function ExecutionsCard({ trade }: Props) {
         )}
 
         {/* Add execution form */}
-        {adding && (
+        {adding && !editingId && (
           <div className="rounded-md border border-border/60 bg-accent/20 p-3 space-y-3">
             {/* Buy / Sell toggle */}
             <div className="flex gap-2">
@@ -314,7 +364,7 @@ export function ExecutionsCard({ trade }: Props) {
         )}
 
         {/* Execution rows */}
-        {executions.length === 0 && !adding && (
+        {executions.length === 0 && !adding && !editingId && (
           <p className="text-sm text-muted-foreground text-center py-4">
             No executions logged. Add buys and sells to track P&L.
           </p>
@@ -323,26 +373,118 @@ export function ExecutionsCard({ trade }: Props) {
         {executions.length > 0 && (
           <>
             {/* Column headers */}
-            <div className="grid grid-cols-[80px_1fr_80px_80px_60px_80px_32px] gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground px-1">
-              <span>Action</span>
-              <span>Date / Time</span>
-              <span className="text-right">Qty</span>
-              <span className="text-right">Price</span>
-              <span className="text-right">Fee</span>
-              <span className="text-right">Dividend</span>
-              <span />
-            </div>
+            {!editingId && (
+              <div className="grid grid-cols-[80px_1fr_80px_80px_60px_80px_72px] gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground px-1">
+                <span>Action</span>
+                <span>Date / Time</span>
+                <span className="text-right">Qty</span>
+                <span className="text-right">Price</span>
+                <span className="text-right">Fee</span>
+                <span className="text-right">Dividend</span>
+                <span className="text-right">Actions</span>
+              </div>
+            )}
 
             {executions.map((exec) => {
               const isDividendOnly = exec.quantity === 0 && exec.price === 0 && (exec.dividend ?? 0) > 0
+              const isEditing = editingId === exec.id
+
+              if (isEditing) {
+                return (
+                  <div
+                    key={exec.id}
+                    className="grid grid-cols-[80px_1fr_80px_80px_60px_80px_120px] gap-2 items-center px-1 py-2 rounded bg-accent/30"
+                  >
+                    {/* Action toggle */}
+                    <div className="flex gap-1">
+                      {(['buy', 'sell'] as const).map((a) => (
+                        <button
+                          key={a}
+                          type="button"
+                          onClick={() => setEditForm((f) => ({ ...f, action: a }))}
+                          className={cn(
+                            'flex-1 py-1 rounded text-[10px] font-semibold border transition-colors uppercase',
+                            editForm.action === a
+                              ? a === 'buy'
+                                ? 'bg-[#00d4a1]/20 border-[#00d4a1]/50 text-[#00d4a1]'
+                                : 'bg-[#ff4d6d]/20 border-[#ff4d6d]/50 text-[#ff4d6d]'
+                              : 'bg-transparent border-border text-muted-foreground hover:border-foreground/30'
+                          )}
+                        >
+                          {a}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="datetime-local"
+                      value={editForm.datetime}
+                      onChange={(e) => setEditForm((f) => ({ ...f, datetime: e.target.value }))}
+                      className={cn(inputClass, 'text-[11px] px-1.5 py-1')}
+                    />
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={editForm.quantity}
+                      onChange={(e) => setEditForm((f) => ({ ...f, quantity: e.target.value }))}
+                      className={cn(inputClass, 'text-[11px] px-1.5 py-1 text-right')}
+                    />
+                    <input
+                      type="number"
+                      step="0.0001"
+                      min="0"
+                      value={editForm.price}
+                      onChange={(e) => setEditForm((f) => ({ ...f, price: e.target.value }))}
+                      className={cn(inputClass, 'text-[11px] px-1.5 py-1 text-right')}
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editForm.fee}
+                      onChange={(e) => setEditForm((f) => ({ ...f, fee: e.target.value }))}
+                      className={cn(inputClass, 'text-[11px] px-1.5 py-1 text-right')}
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editForm.dividend}
+                      onChange={(e) => setEditForm((f) => ({ ...f, dividend: e.target.value }))}
+                      className={cn(inputClass, 'text-[11px] px-1.5 py-1 text-right')}
+                    />
+                    <div className="flex gap-1 justify-end">
+                      <button
+                        type="button"
+                        onClick={handleSaveEdit}
+                        disabled={saving}
+                        className="px-2 py-1 text-[11px] rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingId(null)
+                          setError(null)
+                        }}
+                        className="px-2 py-1 text-[11px] rounded text-muted-foreground hover:text-foreground"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )
+              }
+
               return (
                 <div
                   key={exec.id}
                   className={cn(
                     'grid gap-2 items-center px-1 py-1 rounded hover:bg-accent/30 transition-colors',
                     isDividendOnly
-                      ? 'grid-cols-[80px_1fr_1fr_32px]'
-                      : 'grid-cols-[80px_1fr_80px_80px_60px_80px_32px]'
+                      ? 'grid-cols-[80px_1fr_1fr_72px]'
+                      : 'grid-cols-[80px_1fr_80px_80px_60px_80px_72px]'
                   )}
                 >
                   <span
@@ -393,13 +535,22 @@ export function ExecutionsCard({ trade }: Props) {
                     </>
                   )}
 
-                  <button
-                    onClick={() => handleDelete(exec.id)}
-                    disabled={deleting === exec.id}
-                    className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-30"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(exec)}
+                      className="p-1 rounded text-muted-foreground/60 hover:text-primary hover:bg-accent/60 transition-colors"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(exec.id)}
+                      disabled={deleting === exec.id}
+                      className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-30"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               )
             })}

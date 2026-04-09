@@ -127,19 +127,24 @@ export function TradeRow({ trade, onClick }: Props) {
       </div>
 
       {/* Grade */}
-      {trade.ai_grade && (
+      <div className="hidden lg:flex items-center justify-end w-16">
         <div
           className={cn(
             'grade-badge text-xs',
-            trade.ai_grade.startsWith('A') ? 'bg-profit-muted text-[#00d4a1]' : 
-            trade.ai_grade.startsWith('B') ? 'bg-blue-400/10 text-blue-400' :
-            trade.ai_grade.startsWith('C') ? 'bg-[#f0b429]/10 text-[#f0b429]' :
-            'bg-loss-muted text-[#ff4d6d]'
+            !trade.ai_grade
+              ? 'opacity-0'
+              : trade.ai_grade.startsWith('A')
+              ? 'bg-profit-muted text-[#00d4a1]'
+              : trade.ai_grade.startsWith('B')
+              ? 'bg-blue-400/10 text-blue-400'
+              : trade.ai_grade.startsWith('C')
+              ? 'bg-[#f0b429]/10 text-[#f0b429]'
+              : 'bg-loss-muted text-[#ff4d6d]'
           )}
         >
-          {trade.ai_grade}
+          {trade.ai_grade ?? 'A'}
         </div>
-      )}
+      </div>
     </div>
   )
 }
