@@ -240,8 +240,9 @@ export function NewTradePage() {
     const timer = setTimeout(async () => {
       setSectorLoading(true)
       try {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001'
         const res = await fetch(
-          `/api/yahoo/sector/${encodeURIComponent(ticker.toUpperCase())}`,
+          `${apiUrl}/api/yahoo/sector/${encodeURIComponent(ticker.toUpperCase())}`,
           { signal: controller.signal }
         )
         if (!res.ok) return

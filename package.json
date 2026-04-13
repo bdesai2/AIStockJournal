@@ -29,6 +29,7 @@
     "@supabase/supabase-js": "^2.39.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
+    "cors": "^2.8.6",
     "date-fns": "^3.3.1",
     "dotenv": "^16.6.1",
     "express": "^4.19.0",

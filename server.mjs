@@ -12,6 +12,7 @@
 
 import 'dotenv/config'
 import express from 'express'
+import cors from 'cors'
 import Anthropic from '@anthropic-ai/sdk'
 import { registerAiRoutes } from './lib/aiRoutes.mjs'
 import { registerFinnhubProxyRoutes } from './lib/finnhubProxy.mjs'
@@ -22,6 +23,7 @@ const app = express()
 const PORT = process.env.PORT || 3001
 
 // Middleware
+app.use(cors())
 app.use(express.json())
 
 // Health check endpoint
