@@ -3,6 +3,7 @@ import { aiApi, type SetupCheckResult, type WeeklyDigestResult, type TradeAnalys
 import { useTradeStore } from '@/store/tradeStore'
 import { db, supabase } from '@/lib/supabase'
 import type { Trade } from '@/types'
+import { useNotificationStore } from '@/store/notificationStore'
 
 // ─── State Interface ──────────────────────────────────────────────────────────
 
@@ -91,6 +92,15 @@ export const useAiStore = create<AiState>((set) => ({
         ai_expires_at: expiresAt.toISOString(),
       })
       set({ gradeLoading: false, lastGradedId: trade.id })
+
+      const { push } = useNotificationStore.getState()
+      push({
+        kind: 'ai_graded',
+        variant: 'success',
+        title: 'Trade graded',
+        message: `${trade.ticker} · grade ${result.grade}`,
+        tradeId: trade.id,
+      })
     } catch (err) {
       set({
         gradeLoading: false,
@@ -119,6 +129,13 @@ export const useAiStore = create<AiState>((set) => ({
     try {
       const result = await aiApi.weeklyDigest(trades)
       set({ digestLoading: false, digestResult: result })
+      const { push } = useNotificationStore.getState()
+      push({
+        kind: 'weekly_digest_ready',
+        variant: 'success',
+        title: 'Weekly digest ready',
+        message: `Digest generated for ${trades.length} closed trades`,
+      })
 
       // Save to database
       try {
@@ -150,6 +167,15 @@ export const useAiStore = create<AiState>((set) => ({
     try {
       const result = await aiApi.tradeAnalysis(trade)
       set({ analysisLoading: false, analysisResult: result })
+
+      const { push } = useNotificationStore.getState()
+      push({
+        kind: 'analysis_ready',
+        variant: 'info',
+        title: 'Analysis ready',
+        message: `${trade.ticker} · AI analysis complete`,
+        tradeId: trade.id,
+      })
     } catch (err) {
       set({
         analysisLoading: false,

@@ -10,6 +10,7 @@ import { TradeDetailPage } from '@/pages/TradeDetailPage'
 import { NewTradePage } from '@/pages/NewTradePage'
 import { JournalPage } from '@/pages/JournalPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { StrategiesPage } from '@/pages/StrategiesPage'
 
 export const router = createBrowserRouter([
   {
@@ -35,6 +36,7 @@ export const router = createBrowserRouter([
       { path: 'trades/:id', element: <TradeDetailPage /> },
       { path: 'trades/:id/edit', element: <NewTradePage /> },
       { path: 'journal', element: <JournalPage /> },
+      { path: 'strategies', element: <StrategiesPage /> },
       { path: 'settings', element: <SettingsPage /> },
     ],
   },

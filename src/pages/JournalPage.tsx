@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ChevronLeft,
-  ChevronRight,
   X,
   TrendingUp,
   TrendingDown,
@@ -18,7 +17,6 @@ import {
   endOfMonth,
   eachDayOfInterval,
   getDay,
-  addMonths,
   subMonths,
   isToday,
 } from 'date-fns'
@@ -108,6 +106,24 @@ export function JournalPage() {
     return map
   }, [trades])
 
+  // Month-level summary for current view
+  const monthSummary = useMemo(() => {
+    const key = `${year}-${String(month).padStart(2, '0')}`
+    let pnl = 0
+    let tradesCount = 0
+    let daysWithTrades = 0
+
+    dailyData.forEach((value, dateStr) => {
+      if (dateStr.startsWith(key)) {
+        pnl += value.pnl
+        tradesCount += value.count
+        if (value.count > 0) daysWithTrades += 1
+      }
+    })
+
+    return { pnl, tradesCount, daysWithTrades }
+  }, [dailyData, year, month])
+
   // Calendar grid for current month
   const gridCells = useMemo((): GridCell[] => {
     const start = startOfMonth(currentDate)
@@ -150,10 +166,8 @@ export function JournalPage() {
     setCurrentDate((d) => subMonths(d, 1))
   }
 
-  const nextMonth = () => {
-    setSelectedDate(null)
-    setCurrentDate((d) => addMonths(d, 1))
-  }
+  // Note: next-month navigation is currently handled via the Today button and
+  // direct date selection; reintroduce an explicit nextMonth handler when needed.
 
   return (
     <div className="p-6 space-y-6 animate-in">
@@ -168,24 +182,49 @@ export function JournalPage() {
       <div className="flex flex-col xl:flex-row gap-4">
         {/* ── Calendar ── */}
         <div className="flex-1 min-w-0 rounded-lg border border-border bg-card p-4">
-          {/* Month navigation */}
-          <div className="flex items-center justify-between mb-4">
-            <button
-              onClick={prevMonth}
-              className="p-1.5 rounded-md hover:bg-muted transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="font-medium text-sm tracking-wide">
-              {format(currentDate, 'MMMM yyyy')}
-            </span>
-            <button
-              onClick={nextMonth}
-              className="p-1.5 rounded-md hover:bg-muted transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+          {/* Month navigation + summary */}
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={prevMonth}
+                className="p-1.5 rounded-md hover:bg-muted transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => {
+                  const today = new Date()
+                  setCurrentDate(today)
+                  setSelectedDate(format(today, 'yyyy-MM-dd'))
+                }}
+                className="px-2 py-1 rounded-md text-[11px] border border-border text-muted-foreground hover:bg-muted transition-colors"
+              >
+                Today
+              </button>
+            </div>
+
+            <div className="flex flex-col items-end text-right">
+              <span className="font-medium text-sm tracking-wide">
+                {format(currentDate, 'MMMM yyyy')}
+              </span>
+              <span
+                className={[
+                  'mt-0.5 text-[11px] font-mono',
+                  monthSummary.pnl > 0
+                    ? 'text-[#00d4a1]'
+                    : monthSummary.pnl < 0
+                    ? 'text-[#ff4d6d]'
+                    : 'text-muted-foreground',
+                ].join(' ')}
+              >
+                {monthSummary.pnl > 0 ? '+' : ''}
+                {fmt.currency(monthSummary.pnl, 0)} · {monthSummary.tradesCount} trades
+              </span>
+            </div>
           </div>
+
+          {/* Small spacer after summary */}
+          <div className="h-1" />
 
           {/* Weekday headers */}
           <div className="grid grid-cols-7 mb-1">
@@ -206,6 +245,9 @@ export function JournalPage() {
 
               const { date, dateStr } = cell
               const dayData = dailyData.get(dateStr)
+              const hasTrades = !!dayData
+              const pnl = dayData?.pnl ?? 0
+              const tradeCount = dayData?.count ?? 0
               const hasJournal = !!journals[dateStr]
               const isSelected = selectedDate === dateStr
               const isCurrentDay = isToday(date)
@@ -230,22 +272,24 @@ export function JournalPage() {
                     {format(date, 'd')}
                   </span>
 
-                  {dayData && (
-                    <div className="mt-1.5 space-y-0.5">
-                      <p
-                        className={[
-                          'text-[11px] font-mono font-semibold leading-none',
-                          dayData.pnl >= 0 ? 'text-[#00d4a1]' : 'text-[#ff4d6d]',
-                        ].join(' ')}
-                      >
-                        {dayData.pnl >= 0 ? '+' : ''}
-                        {fmt.currency(dayData.pnl, 0)}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground leading-none">
-                        {dayData.count}t
-                      </p>
-                    </div>
-                  )}
+                  <div className="mt-1.5 space-y-0.5">
+                    <p
+                      className={[
+                        'text-[11px] font-mono font-semibold leading-none',
+                        hasTrades
+                          ? pnl >= 0
+                            ? 'text-[#00d4a1]'
+                            : 'text-[#ff4d6d]'
+                          : 'text-muted-foreground',
+                      ].join(' ')}
+                    >
+                      {hasTrades && pnl > 0 ? '+' : ''}
+                      {fmt.currency(pnl, 0)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground leading-none">
+                      {tradeCount}t
+                    </p>
+                  </div>
 
                   {hasJournal && (
                     <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-primary/70" />

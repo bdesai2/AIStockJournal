@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { version } from '../../../package.json'
 import {
@@ -12,18 +13,48 @@ import {
   Zap,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
+import { useTradeStore } from '@/store/tradeStore'
 import { auth } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
+import { NotificationToaster } from '@/components/notifications/NotificationToaster'
+import { useNotificationStore, type Notification } from '@/store/notificationStore'
+import { aggregateStats, fmt, pnlColor } from '@/lib/tradeUtils'
 
 const NAV_ITEMS = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/trades', icon: LineChart, label: 'Trades' },
   { to: '/journal', icon: BookOpen, label: 'Journal' },
+  { to: '/strategies', icon: Zap, label: 'Strategies' },
 ]
 
 export function AppLayout() {
   const { user, profile } = useAuthStore()
+  const { trades, fetchTrades } = useTradeStore()
   const navigate = useNavigate()
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const notifications = useNotificationStore((s) => s.notifications)
+  const clearAllNotifications = useNotificationStore((s) => s.clearAll)
+
+  const handleNotificationClick = (n: Notification) => {
+    setNotificationsOpen(false)
+
+    if (n.tradeId) {
+      navigate(`/trades/${n.tradeId}`)
+      return
+    }
+
+    if (n.kind === 'journal_saved') {
+      navigate('/journal')
+      return
+    }
+
+    if (n.kind === 'weekly_digest_ready') {
+      navigate('/dashboard')
+      return
+    }
+
+    // Fallback: keep user on current page for info-only notifications
+  }
 
   const handleSignOut = async () => {
     await auth.signOut()
@@ -33,6 +64,18 @@ export function AppLayout() {
   const initials = profile?.display_name
     ? profile.display_name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
     : user?.email?.[0]?.toUpperCase() ?? '?'
+
+  useEffect(() => {
+    if (user?.id && trades.length === 0) {
+      fetchTrades(user.id)
+    }
+  }, [user?.id, trades.length, fetchTrades])
+
+  const stats = useMemo(() => aggregateStats(trades), [trades])
+  const winRatePercent = stats.total_trades > 0 ? stats.win_rate * 100 : 0
+  const profitFactorDisplay = !Number.isFinite(stats.profit_factor)
+    ? '∞'
+    : stats.profit_factor.toFixed(2)
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -46,6 +89,27 @@ export function AppLayout() {
           <div>
             <p className="font-display text-lg tracking-wider leading-none">STONKJOURNAL</p>
             <p className="text-[10px] text-muted-foreground font-mono mt-0.5">v{version} · M3</p>
+          </div>
+        </div>
+
+        {/* Account snapshot */}
+        <div className="px-3 pt-3 pb-2 border-b border-border/60">
+          <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground px-1 mb-1.5">
+            Overview
+          </p>
+          <div className="space-y-1.5 text-[11px] font-mono">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Total P&L</span>
+              <span className={pnlColor(stats.total_pnl)}>{fmt.currency(stats.total_pnl)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Win rate</span>
+              <span>{winRatePercent.toFixed(0)}%</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Profit factor</span>
+              <span>{stats.total_trades > 0 ? profitFactorDisplay : '—'}</span>
+            </div>
           </div>
         </div>
 
@@ -140,16 +204,69 @@ export function AppLayout() {
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {/* Top bar */}
         <header className="h-16 flex items-center justify-between px-6 border-b border-border bg-card/50 flex-shrink-0">
           <div className="flex items-center gap-2">
             {/* Breadcrumb injected by pages via context if needed */}
           </div>
           <div className="flex items-center gap-2">
-            <button className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
-              <Bell className="w-4 h-4" />
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setNotificationsOpen((v) => !v)}
+                className="relative p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              >
+                <Bell className="w-4 h-4" />
+                {notifications.length > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 inline-flex h-3 w-3 items-center justify-center rounded-full bg-primary text-[8px] font-mono text-primary-foreground">
+                    {Math.min(notifications.length, 9)}
+                  </span>
+                )}
+              </button>
+
+              {notificationsOpen && (
+                <div className="absolute right-0 mt-2 w-72 rounded-md border border-border bg-card shadow-lg z-40">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                    <span className="text-xs font-semibold tracking-wide text-muted-foreground">
+                      Notifications
+                    </span>
+                    {notifications.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => clearAllNotifications()}
+                        className="text-[10px] text-muted-foreground hover:text-foreground"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+
+                  {notifications.length === 0 ? (
+                    <div className="px-3 py-4 text-[11px] text-muted-foreground">
+                      No recent activity yet.
+                    </div>
+                  ) : (
+                    <ul className="max-h-72 overflow-y-auto py-1">
+                      {notifications.map((n) => (
+                        <li
+                          key={n.id}
+                          onClick={() => handleNotificationClick(n)}
+                          className="px-3 py-2 border-b border-border/50 last:border-b-0 cursor-pointer hover:bg-accent/40 transition-colors"
+                        >
+                          <p className="text-[11px] font-medium leading-tight truncate">
+                            {n.title}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground leading-snug mt-0.5 line-clamp-2">
+                            {n.message}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -157,6 +274,9 @@ export function AppLayout() {
         <main className="flex-1 overflow-y-auto">
           <Outlet />
         </main>
+
+        {/* Global in-app notifications */}
+        <NotificationToaster />
       </div>
     </div>
   )

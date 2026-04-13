@@ -366,14 +366,14 @@
 ## Known Limitations & Future Improvements
 
 ### Milestone 2 (In Backlog)
-- Calendar journal visualization (currently stubbed)
-- Daily journal monthly view enhancements
-- Real-time trade notifications
+- [x] Calendar journal visualization (currently stubbed)
+- [x] Daily journal monthly view enhancements
+- [x] Real-time trade notifications
 - Mobile app version
 
 ### Milestone 3
-- Claude API integration for AI grading and analysis
-- Enhanced pattern recognition
+- [x] Claude API integration for AI grading and analysis
+- [x] Enhanced pattern recognition
 - Trade similarity matching
 
 ### Milestone 4
@@ -381,11 +381,367 @@
 - Win rate by sector/timeframe
 - Monthly/quarterly performance summaries
 
-### Milestone 5
-- PWA capabilities
-- Offline-first sync
-- Mobile app polish
-- Export/reporting features
+---
+
+## Milestone 5: PWA & Mobile Polish ⬜ (In Planning)
+
+### Progressive Web App (PWA) Core Features
+- **Web App Manifest**
+  - [x] Create manifest.json with app metadata
+  - [x] Define app name, short name, description
+  - [x] Set start URL and display mode (standalone)
+  - [x] Configure app icons (192x192, 512x512, maskable icons)
+  - [x] Set theme color and background color
+  - [x] Define orientation (portrait-primary)
+  - [x] Add manifest link to index.html
+
+- **Service Worker Implementation**
+  - [x] Register service worker on app startup
+  - [x] Implement cache-first strategy for static assets
+  - [x] Cache busting with version updates
+  - [x] Handle service worker updates and skip waiting
+  - [x] Implement proper error handling and fallbacks
+  - [x] Network-first strategy for API calls
+  - [x] Cache versioning strategy (v1, v2, etc.)
+
+- **App Installation**
+  - [ ] Implement install prompt triggering
+  - [ ] Add "Install App" button on homepage
+  - [ ] Display install instructions for different browsers
+  - [ ] Handle beforeinstallprompt event
+  - [ ] Track installation analytics
+  - [ ] Add post-install welcome screen (optional)
+
+### Offline-First Functionality
+- **Data Synchronization**
+  - [ ] Sync trades when connection restored
+  - [ ] Sync journal entries when online
+  - [ ] Queue offline API requests
+  - [ ] Handle conflict resolution (server vs local)
+  - [ ] Maintain optimistic updates for offline actions
+  - [ ] Clear sync queue on successful sync
+  - [ ] Display sync status indicator
+
+- **Offline Data Storage**
+  - [ ] Store trades in IndexedDB for offline access
+  - [ ] Store journal entries offline
+  - [ ] Cache trade screenshots locally
+  - [ ] Implement storage quota management
+  - [ ] Handle storage cleanup/archival
+  - [ ] Sync IndexedDB with server on reconnect
+
+- **Offline UI Indicators**
+  - [ ] Show online/offline status indicator
+  - [ ] Display "Offline Mode" banner when disconnected
+  - [ ] Show sync pending badge on actionable items
+  - [ ] Indicate last synced timestamp
+  - [ ] Disable actions that require network (when appropriate)
+  - [ ] Queue notifications for when network restores
+
+### Mobile UI/UX Polish
+- **Touch Interactions**
+  - [ ] Implement touch-friendly button sizing (min 48x48px)
+  - [ ] Add swipe gestures for navigation
+  - [ ] Implement pull-to-refresh on main pages
+  - [ ] Long-press context menus for trade actions
+  - [ ] Touch feedback (ripple effects, haptics)
+  - [ ] Avoid hover states on mobile
+
+- **Mobile Navigation**
+  - [ ] Bottom tab navigation for mobile (Dashboard, Trades, Journal, Settings)
+  - [ ] Collapse sidebar on mobile devices
+  - [ ] Mobile-friendly header with hamburger menu (if needed)
+  - [ ] Sticky action buttons for forms
+  - [ ] Back gesture support
+  - [ ] Breadcrumb navigation for deep pages
+
+- **Responsive Layout Improvements**
+  - [ ] Full mobile layouts for all pages
+  - [ ] Single-column layouts on small screens
+  - [ ] Stack charts vertically on mobile
+  - [ ] Responsive typography scaling
+  - [ ] Mobile-optimized data tables (scrollable or compact)
+  - [ ] Hide non-essential UI elements on mobile
+  - [ ] Full-screen modals on mobile (no side panels)
+
+- **Performance on Mobile**
+  - [ ] Image optimization (WebP with fallbacks)
+  - [ ] Lazy-load charts and visualizations
+  - [ ] Limit initial API calls on mobile
+  - [ ] Paginate large trade lists
+  - [ ] Minimize bundle size analysis
+  - [ ] Optimize font loading (system fonts preferred)
+
+- **Mobile Form UX**
+  - [ ] Auto-capitalize/lowercase inputs appropriately
+  - [ ] Number input for numeric fields
+  - [ ] Date picker for date fields
+  - [ ] Minimize typing (use pickers, dropdowns)
+  - [ ] Full-screen keyboard on mobile
+  - [ ] Clear validation errors inline
+
+### Export & Reporting Features
+- **Trade Export**
+  - [ ] Export selected trades to CSV
+  - [ ] Export all trades to CSV with filtering options
+  - [ ] Export trades to JSON (includes all metadata)
+  - [ ] Export with date range picker
+  - [ ] Include calculated metrics (P&L, R-Multiple, etc.)
+  - [ ] Batch export multiple trade selections
+
+- **Performance Reports**
+  - [ ] Monthly performance summary PDF
+  - [ ] Quarterly performance report
+  - [ ] Year-to-date summary
+  - [ ] By-strategy performance breakdown
+  - [ ] By-asset-type performance breakdown
+  - [ ] Win rate statistics
+  - [ ] Drawdown analysis
+
+- **Journal Export**
+  - [ ] Export daily journal entries to PDF
+  - [ ] Export date range of journal entries
+  - [ ] Include associated trade details
+  - [ ] Format as readable document (not just data dump)
+
+- **Custom Reports**
+  - [ ] Report builder UI
+  - [ ] Select metrics to include
+  - [ ] Choose date range
+  - [ ] Filter by strategy, asset type, direction
+  - [ ] Generate and download as PDF/CSV
+  - [ ] Save report templates for recurring exports
+
+- **Data Visualization Exports**
+  - [ ] Export charts as PNG/SVG
+  - [ ] Download heatmap visualizations
+  - [ ] Export P&L curve as image
+  - [ ] Share report links (public/private)
+
+### Mobile-Specific Features
+- **App Shortcuts (if possible)**
+  - [ ] Quick action: New Trade
+  - [ ] Quick action: View Dashboard
+  - [ ] Quick action: Add Journal Entry
+  - [ ] Keyboard shortcuts documentation
+
+- **System Integration**
+  - [ ] Share trade/report via mobile share sheet
+  - [ ] Open in email for sharing reports
+  - [ ] Home screen widgets (if framework allows)
+  - [ ] Native app feel with transitions
+
+- **Battery & Data Optimization**
+  - [ ] Disable auto-refresh when backgrounded
+  - [ ] Compress images before uploading
+  - [ ] Reduce animation frequency on low-end devices
+  - [ ] Data saver mode (reduce image quality)
+  - [ ] Limit background sync frequency
+
+### Testing & Validation
+- **PWA Testing**
+  - [ ] Test service worker installation
+  - [ ] Test offline functionality (disable network)
+  - [ ] Test cache updates and invalidation
+  - [ ] Test sync queue on reconnect
+  - [ ] Validate manifest.json
+  - [ ] Test on multiple browsers (Chrome, Safari, Firefox)
+  - [ ] Test on Android and iOS devices
+
+- **Mobile Device Testing**
+  - [ ] Test on iPhone (various sizes)
+  - [ ] Test on Android phones (various sizes)
+  - [ ] Test on tablets (iPad, Android tablets)
+  - [ ] Test on various screen resolutions
+  - [ ] Test touch interactions
+  - [ ] Test performance on low-end devices
+  - [ ] Test mobile Safari (iOS quirks)
+
+- **Performance Testing**
+  - [ ] Lighthouse score target: 90+
+  - [ ] FCP (First Contentful Paint) under 2.5s
+  - [ ] LCP (Largest Contentful Paint) under 4s
+  - [ ] CLS (Cumulative Layout Shift) under 0.1
+  - [ ] Time to Interactive under 5s on mobile
+  - [ ] Offline performance testing
+
+- **Export Testing**
+  - [ ] Test CSV exports with large datasets
+  - [ ] Test PDF generation and formatting
+  - [ ] Test report accuracy with calculated metrics
+  - [ ] Test date range filtering in exports
+  - [ ] Verify data completeness in exports
+
+---
+
+## Milestone 6: Security, Legal & Privacy ⬜ (In Planning)
+
+### Security Audit & Hardening
+
+- **Code Security Audit**
+  - [ ] Scan codebase for OWASP Top 10 vulnerabilities
+  - [ ] Review input validation and sanitization
+  - [ ] Audit authentication flows (OAuth, session handling)
+  - [ ] Check for XSS, CSRF, SQL injection vulnerabilities
+  - [ ] Review dependency vulnerabilities (npm audit)
+  - [ ] Verify secure headers (CSP, X-Frame-Options, etc.)
+- **Data Security**
+  - [ ] Encrypt sensitive data at rest (if applicable)
+  - [ ] Verify Supabase RLS policies are properly configured
+  - [ ] Review storage permissions and access controls
+  - [ ] Implement rate limiting on API endpoints
+  - [ ] Add request validation and error handling
+- **Frontend Security**
+  - [ ] Implement Content Security Policy (CSP)
+  - [ ] Add secure HTTP headers middleware
+  - [ ] Sanitize user input on all forms
+  - [ ] Implement CSRF token validation
+  - [ ] Secure sensitive data in localStorage (tokens, etc.)
+
+### Cookie Consent & Management
+- **Cookie Consent Banner**
+  - [ ] Implement cookie consent UI component
+  - [ ] Categorize cookies (Essential, Analytics, Marketing)
+  - [ ] Store user consent preferences in localStorage
+  - [ ] Respect user choices before loading non-essential cookies
+  - [ ] Allow users to manage cookie preferences anytime
+  - [ ] Comply with GDPR/CCPA cookie requirements
+- **Cookie Policy Page**
+  - [ ] Create detailed cookie disclosure
+  - [ ] List all cookies used by the app
+  - [ ] Explain purpose of each cookie category
+  - [ ] Link from footer and settings
+
+### Privacy Policy & Terms of Service
+- **Privacy Policy**
+  - [ ] Data collection disclosure
+  - [ ] How user data is used and stored
+  - [ ] Third-party services (Supabase, Google OAuth, Yahoo Finance)
+  - [ ] Data retention policies
+  - [ ] User rights and data access
+  - [ ] Compliance with GDPR, CCPA, and relevant regulations
+  - [ ] Contact information for privacy inquiries
+- **Terms of Service**
+  - [ ] Usage rights and restrictions
+  - [ ] Liability limitations
+  - [ ] Dispute resolution
+  - [ ] Service availability and uptime
+  - [ ] Account termination policies
+  - [ ] Intellectual property rights
+- **Disclaimers Page**
+  - [ ] Trading/Investment Disclaimer
+  - [ ] Risk acknowledgment
+  - [ ] Not financial advice disclaimer
+  - [ ] Past performance ≠ future results
+  - [ ] Limitation of liability
+
+### AI-Specific Disclaimers & Limitations
+- **AI Limitations Disclosure**
+  - [ ] Create dedicated "About AI" info section
+  - [ ] Document AI model capabilities and limitations
+  - [ ] Explain what the AI can and cannot do
+  - [ ] Disclose training data cutoff and knowledge limits
+- **Price & Analysis Disclaimers**
+  - [ ] Clearly mark AI-generated analysis as such
+  - [ ] Disclose potential data delays (Yahoo Finance API)
+  - [ ] Explain price accuracy limitations
+  - [ ] Add disclaimers on AI trade grading (not investment advice)
+  - [ ] Clarify AI recommendations are for educational purposes only
+  - [ ] Add timestamps to price data with last-updated info
+- **AI Disclaimers in UI**
+  - [ ] Add info icons/tooltips on AI analysis cards
+  - [ ] Include disclaimer banners on trade grading section
+  - [ ] Display API data freshness/staleness warnings
+  - [ ] Add "This is not financial advice" disclaimers
+  - [ ] Document limitations of setup validation
+
+### GDPR & Data Privacy Compliance
+- **Right to Access**
+  - [ ] Implement data export feature
+  - [ ] Allow users to download all their data in machine-readable format (JSON/CSV)
+  - [ ] Include trades, journal entries, screenshots
+- **Right to Erasure (Right to be Forgotten)**
+  - [ ] Implement full account deletion feature
+  - [ ] Delete all user data from database
+  - [ ] Delete all associated files (screenshots) from storage
+  - [ ] Delete authentication records
+  - [ ] Process deletion within 30 days compliance window
+  - [ ] Provide account deletion confirmation email
+- **Data Portability**
+  - [ ] Export trades in standard formats (CSV, JSON)
+  - [ ] Export journal entries
+  - [ ] Bulk download all screenshots
+- **User Consent Management**
+  - [ ] Track and store user consent for data processing
+  - [ ] Allow users to withdraw consent
+  - [ ] Maintain consent audit trail
+- **Privacy Settings Page**
+  - [ ] Add section in Settings for privacy controls
+  - [ ] Allow toggling of optional tracking/analytics
+  - [ ] Download personal data option
+  - [ ] Delete account option with confirmation
+  - [ ] View consent history
+
+### Additional Legal & Security Features
+- **Rate Limiting & DDoS Protection**
+  - [ ] Implement API rate limiting on backend
+  - [ ] Add Cloudflare or similar DDoS protection
+  - [ ] Monitor for suspicious activity
+- **Audit Logging**
+  - [ ] Log sensitive operations (login, data deletion, settings changes)
+  - [ ] Maintain audit trail for compliance
+  - [ ] Implement log retention policies
+- **Security Headers**
+  - [ ] Strict-Transport-Security (HSTS)
+  - [ ] X-Content-Type-Options: nosniff
+  - [ ] X-Frame-Options: DENY
+  - [ ] Referrer-Policy
+  - [ ] Permissions-Policy
+- **Two-Factor Authentication (2FA) - Optional**
+  - [ ] Implement TOTP-based 2FA
+  - [ ] Recovery codes for account recovery
+  - [ ] Optional for users (not mandatory)
+- **Session Security**
+  - [ ] Implement session timeout after inactivity
+  - [ ] Require re-authentication for sensitive operations
+  - [ ] Clear sensitive data on logout
+  - [ ] Prevent session fixation attacks
+- **Dependency Security**
+  - [ ] Keep dependencies up-to-date
+  - [ ] Regular npm audit and vulnerability scanning
+  - [ ] Use GitHub security scanning
+  - [ ] Lock critical dependency versions
+
+### Compliance & Documentation
+- **Compliance Checklist**
+  - [ ] GDPR compliance validation
+  - [ ] CCPA compliance validation
+  - [ ] HIPAA considerations (if handling health data)
+  - [ ] SOC 2 readiness review
+- **Security Documentation**
+  - [ ] Create SECURITY.md with vulnerability reporting process
+  - [ ] Document security best practices
+  - [ ] Include incident response procedures
+  - [ ] Security contact information
+- **Legal Documentation Maintenance**
+  - [ ] Review and update privacy policy annually
+  - [ ] Track legal changes by region
+  - [ ] Version control for all legal documents
+  - [ ] Timestamp all policy updates
+
+### Testing & Validation
+- **Security Testing**
+  - [ ] Penetration testing (optional/recommended)
+  - [ ] Automated security scanning (npm audit, SAST)
+  - [ ] Manual code review for security issues
+  - [ ] Test XSS, CSRF protections
+  - [ ] Validate RLS policies with edge cases
+- **Compliance Testing**
+  - [ ] Test GDPR deletion flow end-to-end
+  - [ ] Verify data export completeness
+  - [ ] Test cookie consent functionality
+  - [ ] Validate legal document accessibility
+  - [ ] Test account recovery flows
 
 ---
 
@@ -397,4 +753,4 @@
 ---
 
 Generated: 2026-04-09
-Version: Milestone 1 (Complete)
+Version: Milestone 1-3 (Complete), M6 (In Planning)

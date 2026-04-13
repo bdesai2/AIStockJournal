@@ -46,6 +46,36 @@ export interface TradeScreenshot {
   created_at: string
 }
 
+// ─── User-Defined Strategy Library ───────────────────────────────────────────
+
+export interface StrategyScreenshot {
+  id: string
+  strategy_id: string
+  user_id: string
+  storage_path: string
+  url: string
+  label?: string
+  created_at: string
+}
+
+export interface Strategy {
+  id: string
+  user_id: string
+  name: string
+  description?: string
+  setup_rules?: string
+  entry_conditions?: string
+  exit_conditions?: string
+  strengths?: string
+  weaknesses?: string
+  likelihood_of_success?: number
+  confidence_level?: 1 | 2 | 3 | 4 | 5
+  tags?: StrategyTag[]
+  created_at: string
+  updated_at: string
+  screenshots?: StrategyScreenshot[]
+}
+
 // ─── Strategy Tag ─────────────────────────────────────────────────────────────
 
 export type StrategyTag =
@@ -119,12 +149,13 @@ export interface Trade {
   exit_notes?: string        // Why you exited
   mistakes?: string          // What went wrong
   lessons?: string           // What you learned
-  emotional_state?: 'calm' | 'fomo' | 'fearful' | 'confident' | 'impulsive' | 'disciplined'
+  emotional_state?: 'calm' | 'fomo' | 'fearful' | 'confident' | 'impulsive' | 'disciplined' | 'impatient' | 'anxious'
   execution_quality?: 1 | 2 | 3 | 4 | 5   // 1–5 self-rating
 
   // Categorization
   strategy_tags: StrategyTag[]
   custom_tags?: string[]
+  primary_strategy_name?: string
   sector?: string
   market_conditions?: 'trending_up' | 'trending_down' | 'ranging' | 'volatile'
   timeframe?: '1m' | '5m' | '15m' | '1h' | '4h' | 'D' | 'W'

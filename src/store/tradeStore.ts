@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { Trade, TradeExecution, CreateTradeInput, UpdateTradeInput, AiTradeUpdate } from '@/types'
 import { db, storage } from '@/lib/supabase'
 import { calcExecutionsSummary } from '@/lib/tradeUtils'
+import { useNotificationStore } from '@/store/notificationStore'
 
 interface TradeState {
   trades: Trade[]
@@ -151,6 +152,16 @@ export const useTradeStore = create<TradeState>((set, get) => ({
       trades: [newTrade, ...state.trades],
       loading: false,
     }))
+
+    const { push } = useNotificationStore.getState()
+    push({
+      kind: 'trade_created',
+      variant: 'success',
+      title: 'Trade created',
+      message: `${newTrade.ticker} ${newTrade.direction?.toUpperCase?.() ?? ''} · qty ${newTrade.quantity}`,
+      tradeId: newTrade.id,
+    })
+
     return newTrade
   },
 
@@ -174,6 +185,16 @@ export const useTradeStore = create<TradeState>((set, get) => ({
       selectedTrade: state.selectedTrade?.id === id ? updated : state.selectedTrade,
       loading: false,
     }))
+
+    const { push } = useNotificationStore.getState()
+    push({
+      kind: 'trade_updated',
+      variant: 'success',
+      title: 'Trade updated',
+      message: `${updated.ticker} · status ${updated.status}`,
+      tradeId: updated.id,
+    })
+
     return updated
   },
 
@@ -196,6 +217,17 @@ export const useTradeStore = create<TradeState>((set, get) => ({
       trades: state.trades.filter((t) => t.id !== id),
       selectedTrade: state.selectedTrade?.id === id ? null : state.selectedTrade,
     }))
+
+    if (trade) {
+      const { push } = useNotificationStore.getState()
+      push({
+        kind: 'trade_deleted',
+        variant: 'warning',
+        title: 'Trade deleted',
+        message: trade.ticker ?? 'Trade removed',
+        tradeId: trade.id,
+      })
+    }
     return true
   },
 
@@ -226,6 +258,16 @@ export const useTradeStore = create<TradeState>((set, get) => ({
           : t
       ),
     }))
+
+    const { push } = useNotificationStore.getState()
+    push({
+      kind: 'screenshot_uploaded',
+      variant: 'success',
+      title: 'Screenshot uploaded',
+      message: label ? `${label} · attached to trade` : 'Screenshot attached to trade',
+      tradeId,
+    })
+
     return true
   },
 
@@ -240,6 +282,15 @@ export const useTradeStore = create<TradeState>((set, get) => ({
         screenshots: t.screenshots?.filter((s) => s.id !== screenshotId),
       })),
     }))
+
+    const { push } = useNotificationStore.getState()
+    push({
+      kind: 'screenshot_deleted',
+      variant: 'warning',
+      title: 'Screenshot removed',
+      message: 'Screenshot deleted from trade',
+    })
+
     return true
   },
 
@@ -276,6 +327,16 @@ export const useTradeStore = create<TradeState>((set, get) => ({
         return applyExecutions(updated)
       }),
     }))
+
+    const { push } = useNotificationStore.getState()
+    push({
+      kind: 'execution_added',
+      variant: 'success',
+      title: 'Execution added',
+      message: `Execution added to trade`,
+      tradeId,
+    })
+
     return true
   },
 
@@ -306,6 +367,16 @@ export const useTradeStore = create<TradeState>((set, get) => ({
         return applyExecutions(updated)
       }),
     }))
+
+    const { push } = useNotificationStore.getState()
+    push({
+      kind: 'execution_updated',
+      variant: 'success',
+      title: 'Execution updated',
+      message: 'Execution edited',
+      tradeId,
+    })
+
     return true
   },
 
@@ -326,6 +397,16 @@ export const useTradeStore = create<TradeState>((set, get) => ({
         return applyExecutions(updated)
       }),
     }))
+
+    const { push } = useNotificationStore.getState()
+    push({
+      kind: 'execution_deleted',
+      variant: 'warning',
+      title: 'Execution deleted',
+      message: 'Execution removed',
+      tradeId,
+    })
+
     return true
   },
 

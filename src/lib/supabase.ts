@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Trade, UserProfile, DailyJournal, TradeScreenshot } from '@/types'
+import type { Trade, UserProfile, DailyJournal, TradeScreenshot, Strategy, StrategyScreenshot } from '@/types'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
@@ -25,6 +25,8 @@ export const db = {
   screenshots: () => supabase.from('trade_screenshots'),
   executions: () => supabase.from('trade_executions'),
   digests: () => supabase.from('weekly_digests'),
+  strategies: () => supabase.from('strategies'),
+  strategyScreenshots: () => supabase.from('strategy_screenshots'),
 } as const
 
 // ─── Storage helpers ───────────────────────────────────────────────────────────
@@ -103,4 +105,4 @@ export const auth = {
     supabase.auth.onAuthStateChange(cb),
 }
 
-export type { Trade, UserProfile, DailyJournal, TradeScreenshot }
+export type { Trade, UserProfile, DailyJournal, TradeScreenshot, Strategy, StrategyScreenshot }

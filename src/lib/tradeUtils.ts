@@ -247,7 +247,7 @@ export function aggregateStats(trades: Trade[]): TradeStats {
   // ─── Advanced Analysis (M4) ───────────────────────────────────────────────────
 
   // Emotional State: group by emotional_state
-  const EMOTIONAL_STATES = ['calm', 'fomo', 'fearful', 'confident', 'impulsive', 'disciplined'] as const
+  const EMOTIONAL_STATES = ['calm', 'fomo', 'fearful', 'confident', 'impulsive', 'disciplined', 'impatient', 'anxious'] as const
   const by_emotional_state = buildDimension(closed, [...EMOTIONAL_STATES], (t) => t.emotional_state)
 
   // Execution Quality: group by execution_quality (1-5 rating)
@@ -513,4 +513,61 @@ export const STRATEGY_TAG_LABELS: Record<string, string> = {
   straddle: 'Straddle',
   strangle: 'Strangle',
   custom: 'Custom',
+}
+
+// ─── Trade Similarity (M3) ───────────────────────────────────────────────────
+
+function scoreNumericCloseness(a: number | null | undefined, b: number | null | undefined, maxScore: number, scale: number): number {
+  if (a == null || b == null) return 0
+  const diff = Math.abs(a - b)
+  const s = maxScore - diff * scale
+  return s > 0 ? s : 0
+}
+
+export function computeTradeSimilarityScore(a: Trade, b: Trade): number {
+  let score = 0
+
+  // Exact / categorical matches
+  if (a.ticker && b.ticker && a.ticker.toUpperCase() === b.ticker.toUpperCase()) score += 30
+  if (a.asset_type === b.asset_type) score += 5
+  if (a.direction === b.direction) score += 10
+  if (a.status === b.status) score += 5
+  if (a.timeframe && b.timeframe && a.timeframe === b.timeframe) score += 5
+  if (a.duration && b.duration && a.duration === b.duration) score += 5
+  if (a.market_conditions && b.market_conditions && a.market_conditions === b.market_conditions) score += 5
+  if (a.emotional_state && b.emotional_state && a.emotional_state === b.emotional_state) score += 5
+
+  // Strategy tag overlap (Jaccard-like, capped)
+  if (Array.isArray(a.strategy_tags) && Array.isArray(b.strategy_tags)) {
+    const setA = new Set(a.strategy_tags)
+    const shared = b.strategy_tags.filter((t) => setA.has(t))
+    const tagScore = Math.min(shared.length * 5, 20)
+    score += tagScore
+  }
+
+  // Execution quality closeness (max 5)
+  if (a.execution_quality != null && b.execution_quality != null) {
+    const diff = Math.abs(a.execution_quality - b.execution_quality)
+    const s = 5 - diff * 2.5
+    if (s > 0) score += s
+  }
+
+  // R-multiple & P&L% closeness (numeric)
+  score += scoreNumericCloseness(a.r_multiple ?? null, b.r_multiple ?? null, 15, 5)
+  score += scoreNumericCloseness(a.pnl_percent ?? null, b.pnl_percent ?? null, 10, 0.5)
+
+  // Clamp to 0–100 for interpretability
+  if (score < 0) score = 0
+  if (score > 100) score = 100
+  return Math.round(score)
+}
+
+export function findSimilarTrades(reference: Trade, trades: Trade[], limit = 5): { trade: Trade; score: number }[] {
+  const scored = trades
+    .filter((t) => t.id !== reference.id)
+    .map((t) => ({ trade: t, score: computeTradeSimilarityScore(reference, t) }))
+    .filter((entry) => entry.score >= 20)
+    .sort((a, b) => b.score - a.score)
+
+  return scored.slice(0, limit)
 }

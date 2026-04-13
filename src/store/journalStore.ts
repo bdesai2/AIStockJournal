@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { db } from '@/lib/supabase'
 import type { DailyJournal } from '@/types'
+import { useNotificationStore } from '@/store/notificationStore'
 
 type JournalUpdateData = Partial<
   Pick<
@@ -72,6 +73,14 @@ export const useJournalStore = create<JournalState>((set) => ({
       set((state) => ({
         journals: { ...state.journals, [journal.date]: journal },
       }))
+
+      const { push } = useNotificationStore.getState()
+      push({
+        kind: 'journal_saved',
+        variant: 'success',
+        title: 'Journal saved',
+        message: journal.date,
+      })
     }
   },
 

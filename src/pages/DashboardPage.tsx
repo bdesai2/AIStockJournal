@@ -188,6 +188,7 @@ export function DashboardPage() {
   const EMOTIONAL_STATE_LABELS: Record<string, string> = {
     'calm': 'Calm', 'fomo': 'FOMO', 'fearful': 'Fearful',
     'confident': 'Confident', 'impulsive': 'Impulsive', 'disciplined': 'Disciplined',
+    'impatient': 'Impatient', 'anxious': 'Anxious',
   }
   const EXECUTION_QUALITY_LABELS: Record<string, string> = {
     '1': 'Poor (1)', '2': 'Fair (2)', '3': 'Good (3)',

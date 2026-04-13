@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Edit2, Trash2, ArrowUpRight, ArrowDownRight,
   TrendingUp, TrendingDown, Calendar, Tag, Brain, Image, Sparkles, Loader2,
-  Upload, X,
+  Upload, X, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { ExecutionsCard } from '@/components/trades/ExecutionsCard'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { useAiStore } from '@/store/aiStore'
-import { fmt, pnlColor, STRATEGY_TAG_LABELS, calcBuyAmount, calcSellAmount, calcPnlPercent, calcUnrealizedPnl, calcUnrealizedPercent } from '@/lib/tradeUtils'
+import { fmt, pnlColor, STRATEGY_TAG_LABELS, calcBuyAmount, calcSellAmount, calcPnlPercent, calcUnrealizedPnl, calcUnrealizedPercent, findSimilarTrades } from '@/lib/tradeUtils'
 import { cn } from '@/lib/utils'
 
 function DetailRow({ label, value, valueClass }: { label: string; value: React.ReactNode; valueClass?: string }) {
@@ -42,6 +42,7 @@ export function TradeDetailPage() {
   const [currentPrice, setCurrentPrice] = useState<number | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [similarOpen, setSimilarOpen] = useState(false)
 
   useEffect(() => {
     if (user?.id && trades.length === 0) fetchTrades(user.id)
@@ -77,6 +78,15 @@ export function TradeDetailPage() {
 
     return () => controller.abort()
   }, [trade?.ticker, trade?.asset_type])
+
+  const similar = useMemo(
+    () => (trade ? findSimilarTrades(trade, trades, 5) : []),
+    [trade, trades]
+  )
+  const filteredSimilar = useMemo(
+    () => similar.filter(({ score }) => score > 49),
+    [similar]
+  )
 
   if (!trade) {
     return (
@@ -197,6 +207,11 @@ export function TradeDetailPage() {
                   'bg-[#f0b429]/10 text-[#f0b429]'
                 )}>
                   {trade.ai_grade}
+                </span>
+              )}
+              {trade.primary_strategy_name && (
+                <span className="text-[11px] font-mono px-2 py-1 rounded bg-primary/10 text-primary border border-primary/30">
+                  {trade.primary_strategy_name}
                 </span>
               )}
               <span className={cn(
@@ -554,6 +569,74 @@ export function TradeDetailPage() {
 
       {/* Executions */}
       <ExecutionsCard trade={trade} />
+
+      {/* Similar Trades (full-width below executions) */}
+      {filteredSimilar.length > 0 && (
+        <Card title="Similar Trades" icon={Sparkles}>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">
+                Based on ticker, strategy tags, direction, timeframe, market conditions, and P&L profile.
+              </p>
+              <button
+                type="button"
+                onClick={() => setSimilarOpen((v) => !v)}
+                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                <span>{similarOpen ? 'Hide' : 'Show'}</span>
+                {similarOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+            </div>
+            {similarOpen && filteredSimilar.map(({ trade: t, score }) => {
+              const isWin = (t.net_pnl ?? 0) >= 0
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => navigate(`/trades/${t.id}`)}
+                  className="w-full text-left flex items-center justify-between gap-3 px-3 py-2 rounded-md border border-border/60 hover:border-primary/40 hover:bg-accent/40 transition-colors"
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm">{t.ticker}</span>
+                      <span
+                        className={cn(
+                          'text-[10px] px-1.5 py-0.5 rounded font-mono',
+                          t.direction === 'long'
+                            ? 'bg-profit-muted text-[#00d4a1]'
+                            : 'bg-loss-muted text-[#ff4d6d]'
+                        )}
+                      >
+                        {t.direction.toUpperCase()}
+                      </span>
+                      {t.ai_grade && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded font-mono bg-accent text-muted-foreground">
+                          {t.ai_grade}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground font-mono">
+                      <span>{fmt.date(t.entry_date)}</span>
+                      {t.r_multiple != null && (
+                        <span className={pnlColor(t.r_multiple)}>{fmt.rMultiple(t.r_multiple)}</span>
+                      )}
+                      {t.net_pnl != null && (
+                        <span className={pnlColor(t.net_pnl)}>
+                          {isWin ? '+' : ''}{fmt.currency(t.net_pnl)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-xs font-mono text-muted-foreground">Similarity</span>
+                    <span className="text-sm font-mono font-semibold text-primary">{score}%</span>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* Screenshots */}
       <Card title="Charts & Screenshots" icon={Image}>

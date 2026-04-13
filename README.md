@@ -164,5 +164,6 @@ All tables use Row Level Security — users can only access their own data. The 
 | M1: Foundation + Auth + CRUD | ✅ Complete |
 | M2: Analytics dashboard + Calendar journal | ✅ Complete |
 | M3: AI trade grading (Claude API) | ✅ Complete |
-| M4: Advanced analytics + heatmaps | ⬜ Next |
-| M5: PWA + mobile polish | ⬜ |
+| M4: Advanced analytics + heatmaps | ✅ Complete |
+| M5: PWA + mobile polish | ⬜ Next |
+| M6: Security, Legal & Privacy | ⬜ |

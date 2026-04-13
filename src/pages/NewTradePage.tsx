@@ -7,6 +7,7 @@ import { PlusCircle, Trash2, ChevronDown, ChevronUp, Loader2, ArrowLeft, Upload,
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { useAiStore } from '@/store/aiStore'
+import { useStrategyStore } from '@/store/strategyStore'
 import { STRATEGY_TAG_LABELS } from '@/lib/tradeUtils'
 import { cn } from '@/lib/utils'
 import type { CreateTradeInput, StrategyTag } from '@/types'
@@ -64,12 +65,13 @@ const tradeSchema = z.object({
   lessons: nullableString,
   emotional_state: z.string().optional()
     .transform((v) => v === '' || !v ? undefined : v)
-    .pipe(z.enum(['calm', 'fomo', 'fearful', 'confident', 'impulsive', 'disciplined']).optional()),
+    .pipe(z.enum(['calm', 'fomo', 'fearful', 'confident', 'impulsive', 'disciplined', 'impatient', 'anxious']).optional()),
   execution_quality: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(),
 
   // Categorization
   strategy_tags: z.array(z.string()).default([]),
   custom_tags: z.array(z.string()).optional(),
+  primary_strategy_name: nullableString,
   sector: nullableString,
   market_conditions: z.string().optional()
     .transform((v) => v === '' || !v ? undefined : v)
@@ -164,8 +166,15 @@ export function NewTradePage() {
   const { user } = useAuthStore()
   const { createTrade, updateTrade, trades, uploadScreenshot, deleteScreenshot } = useTradeStore()
   const { runSetupCheck, setupLoading, setupResult, setupError, clearSetupResult } = useAiStore()
+  const { strategies, fetchStrategies } = useStrategyStore()
 
   const existingTrade = isEdit ? trades.find((t) => t.id === id) : undefined
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchStrategies(user.id)
+    }
+  }, [user?.id, fetchStrategies])
 
   const {
     register,
@@ -185,6 +194,7 @@ export function NewTradePage() {
       exchange: prefill?.exchange ?? '',
       status: 'open',
       strategy_tags: [],
+      primary_strategy_name: undefined,
       entry_date: new Date().toISOString().slice(0, 16),
       fees: 0,
       duration: 'swing',
@@ -200,6 +210,7 @@ export function NewTradePage() {
   const status = watch('status')
   const selectedTags = watch('strategy_tags')
   const ticker = watch('ticker')
+  const [selectedStrategyId, setSelectedStrategyId] = useState<string>('')
 
   // Populate form when editing
   useEffect(() => {
@@ -213,6 +224,7 @@ export function NewTradePage() {
           ? new Date(existingTrade.exit_date).toISOString().slice(0, 16)
           : undefined,
         strategy_tags: existingTrade.strategy_tags ?? [],
+        primary_strategy_name: existingTrade.primary_strategy_name ?? undefined,
       } as TradeFormData)
     }
   }, [existingTrade, reset])
@@ -257,6 +269,25 @@ export function NewTradePage() {
     } else {
       setValue('strategy_tags', [...current, tag])
     }
+  }
+
+  const handleStrategySelect = (strategyId: string) => {
+    setSelectedStrategyId(strategyId)
+    if (!strategyId) {
+      setValue('primary_strategy_name', undefined, { shouldDirty: true })
+      return
+    }
+
+    const strategy = strategies.find((s) => s.id === strategyId)
+    if (!strategy) return
+
+    // Apply this strategy's name and tags to the trade
+    setValue('primary_strategy_name', strategy.name, { shouldDirty: true })
+
+    const current = (selectedTags ?? []) as string[]
+    const strategyTags = (strategy.tags ?? []) as string[]
+    const merged = Array.from(new Set([...current, ...strategyTags]))
+    setValue('strategy_tags', merged, { shouldDirty: true })
   }
 
   // Cleanup setup check result on unmount
@@ -652,6 +683,22 @@ export function NewTradePage() {
               })}
             </div>
           </Field>
+
+          {/* Primary Strategy selection (applies tags from your playbook) */}
+          {strategies.length > 0 && (
+            <Field label="Strategy (from playbook)">
+              <select
+                value={selectedStrategyId}
+                onChange={(e) => handleStrategySelect(e.target.value)}
+                className={selectClass}
+              >
+                <option value="">— None —</option>
+                {strategies.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </Field>
+          )}
         </Section>
 
         {/* ── Journal ── */}
@@ -677,7 +724,7 @@ export function NewTradePage() {
                 <Field label="Emotional State">
                   <select {...register('emotional_state')} className={selectClass}>
                     <option value="">— Select —</option>
-                    {(['calm', 'fomo', 'fearful', 'confident', 'impulsive', 'disciplined'] as const).map((v) => (
+                    {(['calm', 'fomo', 'fearful', 'confident', 'impulsive', 'disciplined', 'impatient', 'anxious'] as const).map((v) => (
                       <option key={v} value={v}>{v.charAt(0).toUpperCase() + v.slice(1)}</option>
                     ))}
                   </select>
