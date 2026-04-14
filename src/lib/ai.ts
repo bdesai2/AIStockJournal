@@ -64,11 +64,13 @@ export interface PotentialTradeResult {
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+console.log('API_BASE_URL:', API_BASE_URL)
 
 // ─── HTTP Utility ─────────────────────────────────────────────────────────────
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const url = `${API_BASE_URL}${path}`
+  console.log('Fetching:', url)
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
