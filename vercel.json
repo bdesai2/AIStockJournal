@@ -1,5 +1,8 @@
 {
-  "rewrites": [{ "source": "/(?!api)(.*)", "destination": "/" }],
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://aistockjournal-production.up.railway.app/api/:path*" },
+    { "source": "/(?!api)(.*)", "destination": "/" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
