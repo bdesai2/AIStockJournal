@@ -64,7 +64,9 @@ export interface PotentialTradeResult {
 // ─── HTTP Utility ─────────────────────────────────────────────────────────────
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(path, {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+  const url = baseUrl ? `${baseUrl}${path}` : path
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
