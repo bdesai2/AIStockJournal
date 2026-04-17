@@ -8,6 +8,7 @@
     "server": "node server.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "start": "node server.mjs",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "vitest",
     "test:ui": "vitest --ui",
