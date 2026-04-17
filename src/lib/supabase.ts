@@ -16,6 +16,25 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 })
 
+// ─── Session management ───────────────────────────────────────────────────────
+
+// Warn user if session is about to expire
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+    if (session?.expires_at) {
+      const expiresAt = session.expires_at * 1000 // Convert to ms
+      const now = Date.now()
+      const timeUntilExpiry = expiresAt - now
+
+      // If less than 5 minutes left, warn user
+      if (timeUntilExpiry > 0 && timeUntilExpiry < 5 * 60 * 1000) {
+        console.warn(`⚠️ Session expires in ${Math.round(timeUntilExpiry / 1000 / 60)} minutes`)
+      }
+    }
+  }
+})
+
+
 // ─── Typed query helpers ───────────────────────────────────────────────────────
 
 export const db = {

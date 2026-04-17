@@ -101,7 +101,21 @@ export const useTradeStore = create<TradeState>((set, get) => ({
       .single()
 
     if (error) {
-      set({ error: error.message, loading: false })
+      const errorMsg = error.message || 'Failed to create trade'
+      set({ error: errorMsg, loading: false })
+
+      // Notify user and suggest re-login if auth error
+      const { push } = useNotificationStore.getState()
+      const isAuthError = error.status === 401 || errorMsg.includes('auth') || errorMsg.includes('token')
+      push({
+        kind: 'error',
+        variant: 'error',
+        title: isAuthError ? 'Session expired' : 'Error creating trade',
+        message: isAuthError
+          ? 'Your session has expired. Please log in again and resubmit your trade.'
+          : errorMsg,
+      })
+
       return null
     }
 
@@ -175,7 +189,21 @@ export const useTradeStore = create<TradeState>((set, get) => ({
       .single()
 
     if (error) {
-      set({ error: error.message, loading: false })
+      const errorMsg = error.message || 'Failed to update trade'
+      set({ error: errorMsg, loading: false })
+
+      // Notify user and suggest re-login if auth error
+      const { push } = useNotificationStore.getState()
+      const isAuthError = error.status === 401 || errorMsg.includes('auth') || errorMsg.includes('token')
+      push({
+        kind: 'error',
+        variant: 'error',
+        title: isAuthError ? 'Session expired' : 'Error updating trade',
+        message: isAuthError
+          ? 'Your session has expired. Please log in again and resubmit your changes.'
+          : errorMsg,
+      })
+
       return null
     }
 
