@@ -3,7 +3,7 @@
     "builder": "nixpacks"
   },
   "deploy": {
-    "startCommand": "node server.mjs",
+    "startCommand": "npm ci --omit=dev && node server.mjs",
     "restartPolicyType": "on_failure",
     "restartPolicyMaxRetries": 5
   }
