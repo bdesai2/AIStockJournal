@@ -1,0 +1,6 @@
+[build]
+# Don't use Caddy, just run Express directly
+providers = ["nodejs"]
+
+[start]
+cmd = "node server.mjs"
