@@ -106,7 +106,7 @@ export const useTradeStore = create<TradeState>((set, get) => ({
 
       // Notify user and suggest re-login if auth error
       const { push } = useNotificationStore.getState()
-      const isAuthError = error.status === 401 || errorMsg.includes('auth') || errorMsg.includes('token')
+      const isAuthError = errorMsg.includes('auth') || errorMsg.includes('token') || errorMsg.includes('401')
       push({
         kind: 'error',
         variant: 'error',
@@ -194,7 +194,7 @@ export const useTradeStore = create<TradeState>((set, get) => ({
 
       // Notify user and suggest re-login if auth error
       const { push } = useNotificationStore.getState()
-      const isAuthError = error.status === 401 || errorMsg.includes('auth') || errorMsg.includes('token')
+      const isAuthError = errorMsg.includes('auth') || errorMsg.includes('token') || errorMsg.includes('401')
       push({
         kind: 'error',
         variant: 'error',

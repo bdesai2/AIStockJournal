@@ -16,6 +16,7 @@ export type NotificationKind =
   | 'ai_graded'
   | 'weekly_digest_ready'
   | 'analysis_ready'
+  | 'error'
 
 export interface Notification {
   id: string
