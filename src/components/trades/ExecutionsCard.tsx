@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { PlusCircle, Trash2, TrendingUp, TrendingDown, Edit2 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
-import { calcExecutionsSummary, fmt, pnlColor } from '@/lib/tradeUtils'
+import { calcExecutionsSummary, calcExitPriceFromExecutions, getCurrentExitDate, fmt, pnlColor } from '@/lib/tradeUtils'
 import { cn } from '@/lib/utils'
 import type { Trade, TradeExecution, AssetType } from '@/types'
 
@@ -21,7 +21,7 @@ function nowLocal() {
 
 export function ExecutionsCard({ trade }: Props) {
   const { user } = useAuthStore()
-  const { addExecution, updateExecution, deleteExecution } = useTradeStore()
+  const { addExecution, updateExecution, deleteExecution, updateTrade } = useTradeStore()
 
   const [adding, setAdding] = useState(false)
   const [addingDividend, setAddingDividend] = useState(false)
@@ -70,18 +70,35 @@ export function ExecutionsCard({ trade }: Props) {
     if (!user?.id || !form.quantity || !form.price) return
     setSaving(true)
     setError(null)
-    const success = await addExecution(user.id, trade.id, {
+    const newExecution = {
       action: form.action,
       datetime: new Date(form.datetime).toISOString(),
       quantity: parseFloat(form.quantity),
       price: parseFloat(form.price),
       fee: form.fee ? parseFloat(form.fee) : 0,
       dividend: form.dividend ? parseFloat(form.dividend) : 0,
-    })
+    } as TradeExecution
+
+    const success = await addExecution(user.id, trade.id, newExecution)
     setSaving(false)
+
     if (success) {
       setAdding(false)
       setForm({ action: 'buy', datetime: nowLocal(), quantity: '', price: '', fee: '', dividend: '' })
+
+      // Recalculate exit_price from updated executions if trade is closed
+      if (trade.status === 'closed') {
+        const updatedExecutions = [...(trade.executions || []), newExecution]
+        const newExitPrice = calcExitPriceFromExecutions({ ...trade, executions: updatedExecutions })
+        const newExitDate = getCurrentExitDate(updatedExecutions, trade.direction)
+
+        if (newExitPrice) {
+          await updateTrade(trade.id, {
+            exit_price: Math.round(newExitPrice * 10000) / 10000,
+            exit_date: newExitDate || undefined,
+          })
+        }
+      }
     } else {
       setError('Failed to save execution. Check console for details.')
     }
@@ -141,8 +158,25 @@ export function ExecutionsCard({ trade }: Props) {
 
     const success = await updateExecution(editingId, trade.id, patch)
     setSaving(false)
+
     if (success) {
       setEditingId(null)
+
+      // Recalculate exit_price from updated executions if trade is closed
+      if (trade.status === 'closed' && trade.executions) {
+        const updatedExecutions = trade.executions.map(e =>
+          e.id === editingId ? { ...e, ...patch } : e
+        )
+        const newExitPrice = calcExitPriceFromExecutions({ ...trade, executions: updatedExecutions })
+        const newExitDate = getCurrentExitDate(updatedExecutions, trade.direction)
+
+        if (newExitPrice) {
+          await updateTrade(trade.id, {
+            exit_price: Math.round(newExitPrice * 10000) / 10000,
+            exit_date: newExitDate || undefined,
+          })
+        }
+      }
     } else {
       setError('Failed to update execution. Check console for details.')
     }
@@ -152,6 +186,26 @@ export function ExecutionsCard({ trade }: Props) {
     setDeleting(execId)
     await deleteExecution(execId, trade.id)
     setDeleting(null)
+
+    // Recalculate exit_price from updated executions if trade is closed
+    if (trade.status === 'closed' && trade.executions) {
+      const updatedExecutions = trade.executions.filter(e => e.id !== execId)
+      const newExitPrice = calcExitPriceFromExecutions({ ...trade, executions: updatedExecutions })
+      const newExitDate = getCurrentExitDate(updatedExecutions, trade.direction)
+
+      if (newExitPrice) {
+        await updateTrade(trade.id, {
+          exit_price: Math.round(newExitPrice * 10000) / 10000,
+          exit_date: newExitDate || undefined,
+        })
+      } else if (!newExitPrice && trade.exit_price) {
+        // Clear exit_price if no more exit executions
+        await updateTrade(trade.id, {
+          exit_price: undefined,
+          exit_date: undefined,
+        })
+      }
+    }
   }
 
   return (

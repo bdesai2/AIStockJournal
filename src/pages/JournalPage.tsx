@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ChevronLeft,
+  ChevronRight,
   X,
   TrendingUp,
   TrendingDown,
@@ -18,6 +19,7 @@ import {
   eachDayOfInterval,
   getDay,
   subMonths,
+  addMonths,
   isToday,
 } from 'date-fns'
 import { useAuthStore } from '@/store/authStore'
@@ -48,7 +50,7 @@ function cellClasses(pnl: number | null, isSelected: boolean): string {
 
 export function JournalPage() {
   const navigate = useNavigate()
-  const { user } = useAuthStore()
+  const { user, selectedAccountId } = useAuthStore()
   const { trades, fetchTrades } = useTradeStore()
   const { journals, fetchJournalsForMonth, upsertJournal } = useJournalStore()
 
@@ -65,11 +67,16 @@ export function JournalPage() {
   })
 
   useEffect(() => {
-    if (user?.id) fetchTrades(user.id)
-  }, [user?.id, fetchTrades])
+    if (user?.id && selectedAccountId) fetchTrades(user.id, selectedAccountId)
+  }, [user?.id, selectedAccountId, fetchTrades])
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth() + 1
+
+  // Check if currentDate is the current month
+  const today = new Date()
+  const isCurrentMonth = currentDate.getFullYear() === today.getFullYear() &&
+                         currentDate.getMonth() === today.getMonth()
 
   useEffect(() => {
     if (user?.id) fetchJournalsForMonth(user.id, year, month)
@@ -166,6 +173,11 @@ export function JournalPage() {
     setCurrentDate((d) => subMonths(d, 1))
   }
 
+  const nextMonth = () => {
+    setSelectedDate(null)
+    setCurrentDate((d) => addMonths(d, 1))
+  }
+
   // Note: next-month navigation is currently handled via the Today button and
   // direct date selection; reintroduce an explicit nextMonth handler when needed.
 
@@ -201,6 +213,14 @@ export function JournalPage() {
               >
                 Today
               </button>
+              {!isCurrentMonth && (
+                <button
+                  onClick={nextMonth}
+                  className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
             <div className="flex flex-col items-end text-right">

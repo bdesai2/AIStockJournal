@@ -105,6 +105,7 @@ export type StrategyTag =
 export interface Trade {
   id: string
   user_id: string
+  account_id: string            // NEW: Links trade to specific account
 
   // Identification
   ticker: string
@@ -188,6 +189,7 @@ export type CreateTradeInput = Omit<
   Trade,
   | 'id'
   | 'user_id'
+  | 'account_id'
   | 'created_at'
   | 'updated_at'
   | 'screenshots'
@@ -227,6 +229,19 @@ export interface UserProfile {
   preferred_timeframe?: string
   broker?: string
   timezone?: string
+  created_at: string
+  updated_at: string
+}
+
+// ─── User Accounts (Multi-account support) ────────────────────────────────────
+
+export interface Account {
+  id: string
+  user_id: string
+  account_name: string
+  starting_balance: number
+  broker?: string
+  is_active: boolean
   created_at: string
   updated_at: string
 }
@@ -276,11 +291,17 @@ export interface TradeStats {
   total_pnl: number
   avg_win: number
   avg_loss: number
+  avg_loss_percent: number   // Avg loss as percentage
   profit_factor: number
+  expectancy: number         // (Avg Win × Win% - Avg Loss × Loss%)
   avg_r_multiple: number
   best_trade: number
   worst_trade: number
   avg_holding_period: number
+  avg_win_hold_time: number  // Avg hold time for winning trades (days)
+  avg_loss_hold_time: number // Avg hold time for losing trades (days)
+  avg_size: number           // Avg trade size (quantity)
+  avg_daily_trades: number   // Avg trades per day
   by_asset_type: Record<AssetType, { count: number; pnl: number }>
   by_strategy: Record<string, { count: number; pnl: number; win_rate: number }>
   // Dimensional Analysis (M4)
@@ -301,4 +322,20 @@ export interface TradeStats {
   recovery_factor: number | null
   max_consecutive_wins: number
   max_consecutive_losses: number
+}
+
+// ─── Subscription & Billing (M6.5) ────────────────────────────────────────────
+
+export type SubscriptionStatus = 'active' | 'trialing' | 'canceled' | 'past_due'
+export type SubscriptionTier = 'free' | 'pro'
+
+export interface UserSubscription {
+  tier: SubscriptionTier
+  status: SubscriptionStatus
+  startDate: string | null
+  renewalDate: string | null
+  trialEndsAt: string | null
+  stripeCustomerId?: string
+  stripeSubscriptionId?: string
+  earlyAdopterDiscount: boolean
 }

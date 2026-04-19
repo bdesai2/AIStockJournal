@@ -36,7 +36,7 @@ function Card({ title, icon: Icon, children }: { title: string; icon: React.Elem
 export function TradeDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuthStore()
+  const { user, selectedAccountId } = useAuthStore()
   const { trades, fetchTrades, deleteTrade, setSelectedTrade, uploadScreenshot, deleteScreenshot } = useTradeStore()
   const { gradeTrade, gradeLoading, gradeError, clearGradeError, analyzeOpenTrade, analysisLoading, analysisError, analysisResult, clearAnalysisError } = useAiStore()
   const [currentPrice, setCurrentPrice] = useState<number | null>(null)
@@ -45,8 +45,8 @@ export function TradeDetailPage() {
   const [similarOpen, setSimilarOpen] = useState(false)
 
   useEffect(() => {
-    if (user?.id && trades.length === 0) fetchTrades(user.id)
-  }, [user?.id])
+    if (user?.id && selectedAccountId && trades.length === 0) fetchTrades(user.id, selectedAccountId)
+  }, [user?.id, selectedAccountId])
 
   const trade = trades.find((t) => t.id === id)
 

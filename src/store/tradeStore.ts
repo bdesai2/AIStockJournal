@@ -11,8 +11,8 @@ interface TradeState {
   selectedTrade: Trade | null
 
   // Actions
-  fetchTrades: (userId: string) => Promise<void>
-  createTrade: (input: CreateTradeInput & { user_id: string }) => Promise<Trade | null>
+  fetchTrades: (userId: string, accountId: string) => Promise<void>
+  createTrade: (input: CreateTradeInput & { user_id: string; account_id: string }) => Promise<Trade | null>
   updateTrade: (id: string, input: UpdateTradeInput | AiTradeUpdate) => Promise<Trade | null>
   deleteTrade: (id: string) => Promise<boolean>
   setSelectedTrade: (trade: Trade | null) => void
@@ -54,12 +54,13 @@ export const useTradeStore = create<TradeState>((set, get) => ({
   error: null,
   selectedTrade: null,
 
-  fetchTrades: async (userId: string) => {
+  fetchTrades: async (userId: string, accountId: string) => {
     set({ loading: true, error: null })
     const { data, error } = await db
       .trades()
       .select(TRADE_SELECT)
       .eq('user_id', userId)
+      .eq('account_id', accountId)
       .order('entry_date', { ascending: false })
 
     if (error) {
@@ -76,14 +77,25 @@ export const useTradeStore = create<TradeState>((set, get) => ({
       .map((s) => s.storage_path)
       .filter(Boolean)
 
+    console.log(`[fetchTrades] Found ${allPaths.length} screenshot paths to refresh`)
+
     if (allPaths.length > 0) {
       const urlMap = await storage.getSignedUrls(allPaths)
+
       trades = trades.map((t) => ({
         ...t,
-        screenshots: t.screenshots?.map((s) => ({
-          ...s,
-          url: urlMap.get(s.storage_path) ?? s.url,
-        })),
+        screenshots: t.screenshots?.map((s) => {
+          const newUrl = urlMap.get(s.storage_path)
+          if (newUrl && newUrl !== s.url) {
+            console.log(`[fetchTrades] Updated URL for ${s.storage_path}`)
+          } else if (!newUrl) {
+            console.warn(`[fetchTrades] No signed URL found for ${s.storage_path}`)
+          }
+          return {
+            ...s,
+            url: newUrl ?? s.url,
+          }
+        }),
       }))
     }
 
@@ -181,9 +193,16 @@ export const useTradeStore = create<TradeState>((set, get) => ({
 
   updateTrade: async (id, input) => {
     set({ loading: true, error: null })
+
+    // Convert undefined values to null so Supabase actually clears them
+    const payload = Object.entries(input).reduce((acc, [key, value]) => {
+      acc[key as keyof typeof input] = value === undefined ? null : value
+      return acc
+    }, {} as Record<keyof typeof input, any>)
+
     const { data, error } = await db
       .trades()
-      .update({ ...input, updated_at: new Date().toISOString() })
+      .update({ ...payload, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select(TRADE_SELECT)
       .single()

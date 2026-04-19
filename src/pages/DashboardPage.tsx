@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TrendingUp,TrendingDown,Target,Activity,Award,AlertTriangle,PlusCircle,Brain,Sparkles,Loader2,ChevronDown,ChevronUp,Zap,Flame } from 'lucide-react'
+import { TrendingUp,TrendingDown,Target,Activity,Award,AlertTriangle,PlusCircle,Brain,Sparkles,Loader2,ChevronDown,ChevronUp,Zap,Flame,Trophy,Lock } from 'lucide-react'
 import { AreaChart,Area,XAxis,YAxis,Tooltip,ResponsiveContainer,BarChart,Bar,Cell } from 'recharts'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { useAiStore } from '@/store/aiStore'
+import { useStrategyStore } from '@/store/strategyStore'
 import { aggregateStats, fmt, STRATEGY_TAG_LABELS } from '@/lib/tradeUtils'
+import { useCanAccess } from '@/lib/featureGates'
 import { TradeRow } from '@/components/trades/TradeRow'
 import { Tooltip as UITooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
+import { LockedFeature } from '@/components/premium/LockedFeature'
 import { db } from '@/lib/supabase'
 import type { CSSProperties } from 'react'
 import type { Trade, StrategyTag } from '@/types'
@@ -81,8 +84,9 @@ function DimensionCard({ title, data, labelMap }: {
 
 export function DashboardPage() {
   const navigate = useNavigate()
-  const { user } = useAuthStore()
+  const { user, selectedAccountId, subscription, fetchSubscription } = useAuthStore()
   const { trades, loading, fetchTrades } = useTradeStore()
+  const { strategies } = useStrategyStore()
   const { runWeeklyDigest, digestLoading, digestResult, digestError, clearDigestError } = useAiStore()
   const [digestOpen, setDigestOpen] = useState(true) // Auto-expand if digest exists
   const [lastDigest, setLastDigest] = useState<any>(null)
@@ -98,10 +102,18 @@ export function DashboardPage() {
   const [dimensionalOpen, setDimensionalOpen] = useState(false)
   const [timeBasedOpen, setTimeBasedOpen] = useState(false)
   const [advancedAnalysisOpen, setAdvancedAnalysisOpen] = useState(false)
+  const [proBannerOpen, setProBannerOpen] = useState(true)
+
+  // Feature access checks
+  const canAccessAdvancedMetrics = useCanAccess('ADVANCED_METRICS', subscription?.tier)
+  const canAccessDimensionalAnalysis = useCanAccess('DIMENSIONAL_ANALYSIS', subscription?.tier)
+  const canAccessTimeAnalysis = useCanAccess('TIME_OF_DAY_ANALYSIS', subscription?.tier)
+  const canAccessHeatmap = useCanAccess('HEATMAP', subscription?.tier)
 
   useEffect(() => {
-    if (user?.id) fetchTrades(user.id)
-  }, [user?.id, fetchTrades])
+    if (user?.id && selectedAccountId) fetchTrades(user.id, selectedAccountId)
+    if (user?.id) fetchSubscription(user.id) // Refresh subscription (catches admin tier changes)
+  }, [user?.id, selectedAccountId, fetchTrades, fetchSubscription])
 
   // Fetch latest digest from database on mount
   useEffect(() => {
@@ -522,8 +534,50 @@ export function DashboardPage() {
     },
   ]
 
-  // Advanced Metrics (M4)
+  // Advanced Metrics (M4/M6.5)
   const advancedCards = [
+    {
+      label: 'Expectancy',
+      value: fmt.currency(stats.expectancy),
+      sub: 'Average profit per trade',
+      icon: Target,
+      color: stats.expectancy > 0 ? 'text-[#00d4a1]' : stats.expectancy < 0 ? 'text-[#ff4d6d]' : 'text-muted-foreground',
+    },
+    {
+      label: 'Avg Loss',
+      value: fmt.currency(stats.avg_loss),
+      sub: `${Math.abs(stats.avg_loss_percent).toFixed(1)}% avg`,
+      icon: TrendingDown,
+      color: 'text-[#ff4d6d]',
+    },
+    {
+      label: 'Win Hold Time',
+      value: fmt.holdTime(stats.avg_win_hold_time),
+      sub: 'Avg hold for wins',
+      icon: Trophy,
+      color: 'text-[#00d4a1]',
+    },
+    {
+      label: 'Loss Hold Time',
+      value: fmt.holdTime(stats.avg_loss_hold_time),
+      sub: 'Avg hold for losses',
+      icon: Activity,
+      color: 'text-[#ff4d6d]',
+    },
+    {
+      label: 'Daily Volume',
+      value: `${stats.avg_daily_trades.toFixed(1)}`,
+      sub: 'Avg trades/day',
+      icon: Zap,
+      color: 'text-[#f0b429]',
+    },
+    {
+      label: 'Avg Size',
+      value: `${stats.avg_size.toFixed(0)}`,
+      sub: 'Avg qty/trade',
+      icon: Award,
+      color: 'text-muted-foreground',
+    },
     {
       label: 'Sharpe Ratio',
       value: stats.sharpe_ratio != null ? fmt.number(stats.sharpe_ratio, 2) : '—',
@@ -581,6 +635,12 @@ export function DashboardPage() {
 
   // Tooltip explanations
   const tooltips = {
+    expectancy: 'Average profit per trade. Positive expectancy is crucial for long-term profitability.',
+    avgLoss: 'Average loss per losing trade. Combined with win rate, determines if strategy is profitable.',
+    winHoldTime: 'Average number of days you hold winning trades. Longer hold times can mean bigger wins.',
+    lossHoldTime: 'Average number of days you hold losing trades. Longer hold times can mean bigger losses.',
+    dailyVolume: 'Average number of trades per day. Indicates your trading frequency/activity level.',
+    avgSize: 'Average quantity (shares/contracts) per trade. Shows your typical position sizing.',
     totalPnL: 'Total profit or loss across all closed trades, after fees.',
     winRate: 'Percentage of trades that were profitable. Win rate ≥50% is generally profitable with positive expectancy.',
     profitFactor: 'Ratio of average winning trade to average losing trade. Higher is better; >1.5 is solid.',
@@ -602,7 +662,7 @@ export function DashboardPage() {
     <TooltipProvider>
     <div className="p-6 space-y-6 animate-in">
       {/* Page header */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-display tracking-wider">DASHBOARD</h1>
           <p className="text-muted-foreground text-sm mt-1">
@@ -808,19 +868,86 @@ export function DashboardPage() {
             </UITooltip>
           )}
 
-          {/* Collapsible Advanced Metrics */}
-          <div className="border border-border rounded-lg">
-            <button
-              onClick={() => setAdvancedMetricsOpen(!advancedMetricsOpen)}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/40 transition-colors"
-            >
-              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Advanced Metrics</span>
-              {advancedMetricsOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-            </button>
+          {/* Unified Pro Features Banner (if not Pro) */}
+          {!canAccessAdvancedMetrics && proBannerOpen && (
+            <div className="relative overflow-hidden rounded-lg border border-amber-500/30 bg-gradient-to-r from-amber-950/40 to-amber-900/20 p-6">
+              <div className="relative z-10">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <Lock className="w-5 h-5 text-amber-400" />
+                    <div>
+                      <h3 className="text-sm font-semibold text-amber-100">Unlock Pro Features</h3>
+                      <p className="text-xs text-amber-200/70 mt-1">Premium analytics and AI-powered insights</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setProBannerOpen(false)}
+                    className="text-amber-200/60 hover:text-amber-100 transition-colors p-1"
+                    aria-label="Minimize banner"
+                  >
+                    <ChevronUp className="w-5 h-5" />
+                  </button>
+                </div>
 
-            {advancedMetricsOpen && (
-              <div className="px-4 py-4 grid grid-cols-2 xl:grid-cols-3 gap-4 border-t border-border bg-muted/20">
-                {advancedCards.map(({ label, value, sub, icon: Icon, color }, idx) => (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <p className="text-xs font-medium text-amber-100 mb-2 uppercase tracking-wider">Advanced Analytics</p>
+                    <ul className="text-xs text-amber-100/80 space-y-1">
+                      <li>✓ Advanced performance metrics (Sharpe, Sortino, Drawdown)</li>
+                      <li>✓ 52-week P&amp;L heatmap</li>
+                      <li>✓ Dimensional analysis by strategy, sector, timeframe</li>
+                      <li>✓ Time-based analysis &amp; monthly/quarterly reports</li>
+                      <li>✓ Trade similarity matching</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-amber-100 mb-2 uppercase tracking-wider">AI-Powered Tools</p>
+                    <ul className="text-xs text-amber-100/80 space-y-1">
+                      <li>✓ AI trade grading (A-F with setup scores)</li>
+                      <li>✓ AI setup validation before entering</li>
+                      <li>✓ Weekly AI digest &amp; pattern analysis</li>
+                      <li>✓ Open trade analysis &amp; recommendations</li>
+                      <li>✓ Custom strategy library</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => navigate('/pricing')}
+                  className="bg-amber-500 hover:bg-amber-600 text-amber-950 font-semibold text-sm px-4 py-2 rounded transition-colors"
+                >
+                  View Pricing & Upgrade
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Minimized Pro Features Button */}
+          {!canAccessAdvancedMetrics && !proBannerOpen && (
+            <button
+              onClick={() => setProBannerOpen(true)}
+              className="w-full flex items-center justify-center gap-2 rounded-lg border border-amber-500/30 bg-amber-950/20 hover:bg-amber-950/40 px-4 py-3 transition-colors"
+            >
+              <Lock className="w-4 h-4 text-amber-400" />
+              <span className="text-sm font-medium text-amber-100">Pro Features</span>
+              <ChevronDown className="w-4 h-4 text-amber-200/60" />
+            </button>
+          )}
+
+          {/* Collapsible Advanced Metrics */}
+          {canAccessAdvancedMetrics && (
+            <div className="border border-border rounded-lg">
+              <button
+                onClick={() => setAdvancedMetricsOpen(!advancedMetricsOpen)}
+                className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/40 transition-colors"
+              >
+                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Advanced Metrics</span>
+                {advancedMetricsOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              </button>
+
+              {advancedMetricsOpen && (
+                <div className="px-4 py-4 grid grid-cols-2 xl:grid-cols-3 gap-4 border-t border-border bg-muted/20">
+                {advancedCards.map(({ label, value, sub, icon: Icon, color }) => (
                   <UITooltip key={label}>
                     <TooltipTrigger asChild>
                       <div className="stat-card cursor-help">
@@ -833,18 +960,25 @@ export function DashboardPage() {
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs">
-                      {idx === 0 && tooltips.sharpeRatio}
-                      {idx === 1 && tooltips.sortinoRatio}
-                      {idx === 2 && tooltips.maxDrawdown}
-                      {idx === 3 && tooltips.recoveryFactor}
-                      {idx === 4 && tooltips.maxConsecWins}
-                      {idx === 5 && tooltips.maxConsecLosses}
+                      {label === 'Expectancy' && tooltips.expectancy}
+                      {label === 'Avg Loss' && tooltips.avgLoss}
+                      {label === 'Win Hold Time' && tooltips.winHoldTime}
+                      {label === 'Loss Hold Time' && tooltips.lossHoldTime}
+                      {label === 'Daily Volume' && tooltips.dailyVolume}
+                      {label === 'Avg Size' && tooltips.avgSize}
+                      {label === 'Sharpe Ratio' && tooltips.sharpeRatio}
+                      {label === 'Sortino Ratio' && tooltips.sortinoRatio}
+                      {label === 'Max Drawdown' && tooltips.maxDrawdown}
+                      {label === 'Recovery Factor' && tooltips.recoveryFactor}
+                      {label === 'Max Consec. Wins' && tooltips.maxConsecWins}
+                      {label === 'Max Consec. Losses' && tooltips.maxConsecLosses}
                     </TooltipContent>
                   </UITooltip>
                 ))}
               </div>
             )}
-          </div>
+            </div>
+          )}
 
           {/* AI Insights card */}
           {closedTrades.length >= 5 && (
@@ -1023,50 +1157,52 @@ export function DashboardPage() {
           </div>
 
           {/* P&L Activity Heatmap */}
-          <div className="rounded-lg border border-border bg-card p-4">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">
-              P&L Activity — Past 52 Weeks
-            </p>
-            <div className="overflow-x-auto">
-              <div className="flex gap-[3px] min-w-max pb-1">
-                {heatmapData.weeks.map((week, wi) => (
-                  <div key={wi} className="flex flex-col gap-[3px]">
-                    {week.map((day) => (
-                      <div
-                        key={day.date}
-                        title={
-                          day.pnl != null && day.pnl !== 0
-                            ? `${day.date}: ${day.pnl >= 0 ? '+' : ''}${fmt.currency(day.pnl)}`
-                            : day.date
-                        }
-                        className="w-3 h-3 rounded-sm cursor-default"
-                        style={heatmapCellStyle(day.pnl, heatmapData.maxPnl)}
-                      />
-                    ))}
-                  </div>
+          {canAccessHeatmap && (
+            <div className="rounded-lg border border-border bg-card p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">
+                P&L Activity — Past 52 Weeks
+              </p>
+              <div className="overflow-x-auto">
+                <div className="flex gap-[3px] min-w-max pb-1">
+                  {heatmapData.weeks.map((week, wi) => (
+                    <div key={wi} className="flex flex-col gap-[3px]">
+                      {week.map((day) => (
+                        <div
+                          key={day.date}
+                          title={
+                            day.pnl != null && day.pnl !== 0
+                              ? `${day.date}: ${day.pnl >= 0 ? '+' : ''}${fmt.currency(day.pnl)}`
+                              : day.date
+                          }
+                          className="w-3 h-3 rounded-sm cursor-default"
+                          style={heatmapCellStyle(day.pnl, heatmapData.maxPnl)}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-3 pt-2 border-t border-border">
+                <span className="text-xs text-muted-foreground">Less</span>
+                {[0.15, 0.38, 0.62, 1.0].map((a, i) => (
+                  <div
+                    key={i}
+                    className="w-3 h-3 rounded-sm"
+                    style={{ backgroundColor: `rgba(0, 212, 161, ${a})` }}
+                  />
                 ))}
+                <span className="text-xs text-muted-foreground mr-2">Profit</span>
+                {[0.15, 0.38, 0.62, 1.0].map((a, i) => (
+                  <div
+                    key={i}
+                    className="w-3 h-3 rounded-sm"
+                    style={{ backgroundColor: `rgba(255, 77, 109, ${a})` }}
+                  />
+                ))}
+                <span className="text-xs text-muted-foreground">Loss</span>
               </div>
             </div>
-            <div className="flex items-center gap-2 mt-3 pt-2 border-t border-border">
-              <span className="text-xs text-muted-foreground">Less</span>
-              {[0.15, 0.38, 0.62, 1.0].map((a, i) => (
-                <div
-                  key={i}
-                  className="w-3 h-3 rounded-sm"
-                  style={{ backgroundColor: `rgba(0, 212, 161, ${a})` }}
-                />
-              ))}
-              <span className="text-xs text-muted-foreground mr-2">Profit</span>
-              {[0.15, 0.38, 0.62, 1.0].map((a, i) => (
-                <div
-                  key={i}
-                  className="w-3 h-3 rounded-sm"
-                  style={{ backgroundColor: `rgba(255, 77, 109, ${a})` }}
-                />
-              ))}
-              <span className="text-xs text-muted-foreground">Loss</span>
-            </div>
-          </div>
+          )}
 
           {/* Performance breakdown */}
           {(strategyChartData.length > 0 || assetTypeData.length > 0) && (
@@ -1174,93 +1310,97 @@ export function DashboardPage() {
           )}
 
           {/* Collapsible Dimensional Analysis */}
-          <div className="border border-border rounded-lg">
-            <button
-              onClick={() => setDimensionalOpen(!dimensionalOpen)}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/40 transition-colors"
-            >
-              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Dimensional Analysis</span>
-              {dimensionalOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-            </button>
+          {canAccessDimensionalAnalysis && (
+            <div className="border border-border rounded-lg">
+              <button
+                onClick={() => setDimensionalOpen(!dimensionalOpen)}
+                className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/40 transition-colors"
+              >
+                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Dimensional Analysis</span>
+                {dimensionalOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              </button>
 
-            {dimensionalOpen && (
-              <div className="px-4 py-4 grid grid-cols-1 xl:grid-cols-2 gap-4 border-t border-border bg-muted/20">
-                <DimensionCard title="Win Rate by Strategy" data={stats.by_strategy} labelMap={STRATEGY_TAG_LABELS} />
-                <DimensionCard title="Win Rate by Sector" data={stats.by_sector} />
-                <DimensionCard title="Win Rate by Timeframe" data={stats.by_timeframe} labelMap={TIMEFRAME_LABELS} />
-                <DimensionCard title="Win Rate by Duration" data={stats.by_duration} labelMap={DURATION_LABELS} />
-                <DimensionCard title="Win Rate by Market Condition" data={stats.by_market_condition} labelMap={MARKET_CONDITION_LABELS} />
-              </div>
-            )}
-          </div>
+              {dimensionalOpen && (
+                <div className="px-4 py-4 grid grid-cols-1 xl:grid-cols-2 gap-4 border-t border-border bg-muted/20">
+                  <DimensionCard title="Win Rate by Strategy" data={stats.by_strategy} labelMap={STRATEGY_TAG_LABELS} />
+                  <DimensionCard title="Win Rate by Sector" data={stats.by_sector} />
+                  <DimensionCard title="Win Rate by Timeframe" data={stats.by_timeframe} labelMap={TIMEFRAME_LABELS} />
+                  <DimensionCard title="Win Rate by Duration" data={stats.by_duration} labelMap={DURATION_LABELS} />
+                  <DimensionCard title="Win Rate by Market Condition" data={stats.by_market_condition} labelMap={MARKET_CONDITION_LABELS} />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Collapsible Time-Based Analysis */}
-          <div className="border border-border rounded-lg">
-            <button
-              onClick={() => setTimeBasedOpen(!timeBasedOpen)}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/40 transition-colors"
-            >
-              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Time-Based Analysis</span>
-              {timeBasedOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-            </button>
+          {canAccessTimeAnalysis && (
+            <div className="border border-border rounded-lg">
+              <button
+                onClick={() => setTimeBasedOpen(!timeBasedOpen)}
+                className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/40 transition-colors"
+              >
+                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Time-Based Analysis</span>
+                {timeBasedOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              </button>
 
-            {timeBasedOpen && (
-              <div className="px-4 py-4 grid grid-cols-1 xl:grid-cols-2 gap-4 border-t border-border bg-muted/20">
+              {timeBasedOpen && (
+                <div className="px-4 py-4 grid grid-cols-1 xl:grid-cols-2 gap-4 border-t border-border bg-muted/20">
 
-                {/* Monthly P&L — full-width BarChart */}
-                {monthlyData.length > 0 && (
-                  <div className="xl:col-span-2 rounded-lg border border-border bg-card p-4">
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">Monthly P&L</p>
-                    <ResponsiveContainer width="100%" height={180}>
-                      <BarChart data={monthlyData} barSize={24}>
-                        <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(215 20% 50%)' }} tickLine={false} axisLine={false} />
-                        <YAxis tick={{ fontSize: 10, fill: 'hsl(215 20% 50%)' }} tickLine={false} axisLine={false} tickFormatter={compactCurrency} />
-                        <Tooltip
-                          contentStyle={{ background: 'hsl(222 47% 8%)', border: '1px solid hsl(222 47% 14%)', borderRadius: '6px', fontSize: '12px' }}
-                          formatter={(v: number, _n, props) => [
-                            `${fmt.currency(v)} · ${props.payload.count} trades · ${props.payload.winRate}% WR`, 'P&L'
-                          ]}
-                        />
-                        <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
-                          {monthlyData.map((entry, i) => (
-                            <Cell key={i} fill={entry.pnl >= 0 ? '#00d4a1' : '#ff4d6d'} fillOpacity={0.85} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
+                  {/* Monthly P&L — full-width BarChart */}
+                  {monthlyData.length > 0 && (
+                    <div className="xl:col-span-2 rounded-lg border border-border bg-card p-4">
+                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">Monthly P&L</p>
+                      <ResponsiveContainer width="100%" height={180}>
+                        <BarChart data={monthlyData} barSize={24}>
+                          <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(215 20% 50%)' }} tickLine={false} axisLine={false} />
+                          <YAxis tick={{ fontSize: 10, fill: 'hsl(215 20% 50%)' }} tickLine={false} axisLine={false} tickFormatter={compactCurrency} />
+                          <Tooltip
+                            contentStyle={{ background: 'hsl(222 47% 8%)', border: '1px solid hsl(222 47% 14%)', borderRadius: '6px', fontSize: '12px' }}
+                            formatter={(v: number, _n, props) => [
+                              `${fmt.currency(v)} · ${props.payload.count} trades · ${props.payload.winRate}% WR`, 'P&L'
+                            ]}
+                          />
+                          <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
+                            {monthlyData.map((entry, i) => (
+                              <Cell key={i} fill={entry.pnl >= 0 ? '#00d4a1' : '#ff4d6d'} fillOpacity={0.85} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
 
-                {/* Quarterly Summary */}
-                {quarterlyData.length > 0 && (
-                  <div className="rounded-lg border border-border bg-card p-4">
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">Quarterly Summary</p>
-                    <div className="space-y-3">
-                      {quarterlyData.slice().reverse().map(({ label, pnl, count, winRate }) => (
-                        <div key={label}>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium">{label}</span>
-                            <div className="flex items-center gap-3 text-xs font-mono">
-                              <span className={winRate >= 50 ? 'text-[#00d4a1]' : 'text-[#ff4d6d]'}>{winRate}% WR</span>
-                              <span className="text-muted-foreground">{count}t</span>
-                              <span className={pnl >= 0 ? 'text-[#00d4a1]' : 'text-[#ff4d6d]'}>{pnl >= 0 ? '+' : ''}{fmt.currency(pnl)}</span>
+                  {/* Quarterly Summary */}
+                  {quarterlyData.length > 0 && (
+                    <div className="rounded-lg border border-border bg-card p-4">
+                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">Quarterly Summary</p>
+                      <div className="space-y-3">
+                        {quarterlyData.slice().reverse().map(({ label, pnl, count, winRate }) => (
+                          <div key={label}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm font-medium">{label}</span>
+                              <div className="flex items-center gap-3 text-xs font-mono">
+                                <span className={winRate >= 50 ? 'text-[#00d4a1]' : 'text-[#ff4d6d]'}>{winRate}% WR</span>
+                                <span className="text-muted-foreground">{count}t</span>
+                                <span className={pnl >= 0 ? 'text-[#00d4a1]' : 'text-[#ff4d6d]'}>{pnl >= 0 ? '+' : ''}{fmt.currency(pnl)}</span>
+                              </div>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
+                              <div className="h-full rounded-full transition-all" style={{ width: `${winRate}%`, backgroundColor: winRate >= 50 ? '#00d4a1' : '#ff4d6d', opacity: 0.75 }} />
                             </div>
                           </div>
-                          <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
-                            <div className="h-full rounded-full transition-all" style={{ width: `${winRate}%`, backgroundColor: winRate >= 50 ? '#00d4a1' : '#ff4d6d', opacity: 0.75 }} />
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                <DimensionCard title="Trade Duration Impact" data={stats.by_duration_impact} labelMap={DURATION_IMPACT_LABELS} />
-                <DimensionCard title="Time of Day" data={stats.by_time_of_day} labelMap={TIME_OF_DAY_LABELS} />
+                  <DimensionCard title="Trade Duration Impact" data={stats.by_duration_impact} labelMap={DURATION_IMPACT_LABELS} />
+                  <DimensionCard title="Time of Day" data={stats.by_time_of_day} labelMap={TIME_OF_DAY_LABELS} />
 
-              </div>
-            )}
-          </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Collapsible Advanced Analysis */}
           <div className="border border-border rounded-lg">

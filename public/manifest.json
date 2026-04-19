@@ -1,6 +1,6 @@
 {
-  "name": "StonkJournal",
-  "short_name": "StonkJournal",
+  "name": "Trade Reflection",
+  "short_name": "Trade Reflection",
   "description": "AI-powered trading journal for tracking trades, journaling, and performance analytics.",
   "start_url": "/",
   "display": "standalone",

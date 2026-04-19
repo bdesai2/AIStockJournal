@@ -81,9 +81,9 @@ User goes back online → Fetch latest trades from server
 ```javascript
 // Cache names (version each when you update)
 const CACHE_VERSION = 'v1'; // Increment to v2, v3 on deployment
-const STATIC_CACHE = `stonk-static-${CACHE_VERSION}`;
-const DYNAMIC_CACHE = `stonk-dynamic-${CACHE_VERSION}`;
-const API_CACHE = `stonk-api-${CACHE_VERSION}`;
+const STATIC_CACHE = `trade-reflection-static-${CACHE_VERSION}`;
+const DYNAMIC_CACHE = `trade-reflection-dynamic-${CACHE_VERSION}`;
+const API_CACHE = `trade-reflection-api-${CACHE_VERSION}`;
 
 // What to pre-cache on service worker install
 const STATIC_ASSETS = [
@@ -157,12 +157,12 @@ A `manifest.json` file tells the browser how to install your app on the home scr
 | **Splash Screen** | Shows branded splash while app loads |
 | **Discoverability** | Browsers recognize it as installable web app |
 
-### Specific Values for StonkJournal
+### Specific Values for Trade Reflection
 
 ```json
 {
-  "name": "StonkJournal - Trading Journal",
-  "short_name": "StonkJournal",
+  "name": "Trade Reflection - Trading Journal",
+  "short_name": "Trade Reflection",
   "description": "AI-powered trading journal for tracking trades, performance, and patterns",
   
   "start_url": "/",
@@ -221,11 +221,11 @@ A `manifest.json` file tells the browser how to install your app on the home scr
 
 #### `name` & `short_name`
 ```
-"name": "StonkJournal - Trading Journal"  
+"name": "Trade Reflection - Trading Journal"  
 // Full name, used in app stores and install dialog
 // Should be descriptive and brand-recognizable
 
-"short_name": "StonkJournal"
+"short_name": "Trade Reflection"
 // Used on home screen where space is limited
 // Maximum 12 characters recommended
 ```
@@ -394,7 +394,7 @@ function showIOSInstallInstructions() {
   const userAgent = navigator.userAgent.toLowerCase();
   if (userAgent.includes('iphone') || userAgent.includes('ipad')) {
     showModal({
-      title: 'Install StonkJournal',
+      title: 'Install Trade Reflection',
       body: '1. Tap Share\n2. Tap "Add to Home Screen"\n3. Tap "Add"'
     });
   }
@@ -472,15 +472,15 @@ Manages different versions of cached files. When you deploy new code, the servic
 const APP_VERSION = '1.3.0';           // From package.json
 const CACHE_VERSION = 'v1.3.0';        // Matches app version
 
-const STATIC_CACHE = `stonk-static-${CACHE_VERSION}`;
-const API_CACHE = `stonk-api-${CACHE_VERSION}`;
-const DYNAMIC_CACHE = `stonk-dynamic-${CACHE_VERSION}`;
+const STATIC_CACHE = `trade-reflection-static-${CACHE_VERSION}`;
+const API_CACHE = `trade-reflection-api-${CACHE_VERSION}`;
+const DYNAMIC_CACHE = `trade-reflection-dynamic-${CACHE_VERSION}`;
 
 // Old versions to clean up
 const CACHE_KEYS = [
-  `stonk-static-v1.3.0`,
-  `stonk-api-v1.3.0`,
-  `stonk-dynamic-v1.3.0`
+  `trade-reflection-static-v1.3.0`,
+  `trade-reflection-api-v1.3.0`,
+  `trade-reflection-dynamic-v1.3.0`
 ];
 ```
 
@@ -686,7 +686,7 @@ setInterval(cleanupOldCaches, 24 * 60 * 60 * 1000);
 | **API Strategy** | Network-first | Fresh data, fallback for offline |
 | **Cache Limit** | 50-100 items | Prevent excessive storage usage |
 | **Cache Expiry** | 1h API, 30d assets | Balance freshness with performance |
-| **Manifest Name** | StonkJournal | Clear, user-recognizable |
+| **Manifest Name** | Trade Reflection | Clear, user-recognizable |
 | **Display Mode** | standalone | App-like experience |
 | **Theme Color** | #0a0e1a | Match dark design |
 | **Icon Sizes** | 192x192, 512x512 | Cover all device needs |

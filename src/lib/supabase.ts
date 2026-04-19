@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Trade, UserProfile, DailyJournal, TradeScreenshot, Strategy, StrategyScreenshot } from '@/types'
+import type { Trade, UserProfile, Account, DailyJournal, TradeScreenshot, Strategy, StrategyScreenshot } from '@/types'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
@@ -40,12 +40,14 @@ supabase.auth.onAuthStateChange((event, session) => {
 export const db = {
   trades: () => supabase.from('trades'),
   profiles: () => supabase.from('profiles'),
+  accounts: () => supabase.from('accounts'),
   journals: () => supabase.from('daily_journals'),
   screenshots: () => supabase.from('trade_screenshots'),
   executions: () => supabase.from('trade_executions'),
   digests: () => supabase.from('weekly_digests'),
   strategies: () => supabase.from('strategies'),
   strategyScreenshots: () => supabase.from('strategy_screenshots'),
+  audit_logs: () => supabase.from('audit_logs'),
 } as const
 
 // ─── Storage helpers ───────────────────────────────────────────────────────────
@@ -84,17 +86,40 @@ export const storage = {
   // Batch-refresh signed URLs for all screenshot paths in one round-trip
   async getSignedUrls(paths: string[]): Promise<Map<string, string>> {
     if (paths.length === 0) return new Map()
-    const { data } = await supabase.storage
-      .from('trade-screenshots')
-      .createSignedUrls(paths, 60 * 60 * 24) // 24 h
-    if (!data) return new Map()
-    return new Map(
-      data
-        .filter((s): s is typeof s & { path: string; signedUrl: string } =>
-          typeof s.path === 'string' && typeof s.signedUrl === 'string'
-        )
-        .map((s) => [s.path, s.signedUrl])
-    )
+
+    try {
+      const { data, error } = await supabase.storage
+        .from('trade-screenshots')
+        .createSignedUrls(paths, 60 * 60 * 24) // 24 h
+
+      if (error) {
+        console.error('Error creating signed URLs:', error)
+        return new Map()
+      }
+
+      if (!data) {
+        console.warn('No data returned from createSignedUrls')
+        return new Map()
+      }
+
+      const result = new Map(
+        data
+          .filter((s): s is typeof s & { path: string; signedUrl: string } => {
+            if (!s.path || !s.signedUrl) {
+              console.warn('Invalid signed URL entry:', s)
+              return false
+            }
+            return true
+          })
+          .map((s) => [s.path, s.signedUrl])
+      )
+
+      console.log(`[getSignedUrls] Successfully created ${result.size} signed URLs (from ${paths.length} paths)`)
+      return result
+    } catch (e) {
+      console.error('Exception in getSignedUrls:', e)
+      return new Map()
+    }
   },
 }
 
@@ -124,4 +149,5 @@ export const auth = {
     supabase.auth.onAuthStateChange(cb),
 }
 
-export type { Trade, UserProfile, DailyJournal, TradeScreenshot, Strategy, StrategyScreenshot }
+export type { Trade, UserProfile, Account, DailyJournal, TradeScreenshot, Strategy, StrategyScreenshot }
+

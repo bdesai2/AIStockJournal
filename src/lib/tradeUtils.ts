@@ -36,6 +36,15 @@ export const fmt = {
         })
       : '—',
 
+  holdTime: (days?: number | null) => {
+    if (days == null || days < 0) return '—'
+    if (days === 0) return '<1h'
+    if (days < 1) return `${Math.round(days * 24)}h`
+    if (days < 7) return `${days.toFixed(1)}d`
+    if (days < 365) return `${(days / 7).toFixed(1)}w`
+    return `${(days / 365).toFixed(1)}y`
+  },
+
   ticker: (t: string) => t.toUpperCase(),
 }
 
@@ -126,6 +135,39 @@ export function calcSellAmount(trade: Partial<Trade>): number | null {
 
   if (!trade.exit_price || !trade.quantity) return null
   return trade.exit_price * trade.quantity * multiplier
+}
+
+// Calculate exit price from executions (weighted average of exit legs)
+export function calcExitPriceFromExecutions(trade: Partial<Trade>): number | null {
+  if (!trade.executions || trade.executions.length === 0) return null
+
+  // Determine exit action: 'sell' for long, 'buy' for short
+  const exitAction = trade.direction === 'long' ? 'sell' : 'buy'
+  const exitExecutions = trade.executions.filter((e) => e.action === exitAction)
+
+  if (exitExecutions.length === 0) return null
+
+  // Calculate weighted average price
+  const totalQuantity = exitExecutions.reduce((sum, e) => sum + e.quantity, 0)
+  if (totalQuantity === 0) return null
+
+  const totalValue = exitExecutions.reduce((sum, e) => sum + e.quantity * e.price, 0)
+  return totalValue / totalQuantity
+}
+
+// Get the latest exit execution date (for long: latest sell, for short: latest buy)
+export function getCurrentExitDate(
+  executions: TradeExecution[],
+  direction: 'long' | 'short'
+): string | null {
+  const exitAction = direction === 'long' ? 'sell' : 'buy'
+  const exitExecutions = executions.filter((e) => e.action === exitAction)
+  if (exitExecutions.length === 0) return null
+
+  // Return latest datetime
+  return exitExecutions.reduce((latest, e) =>
+    new Date(e.datetime) > new Date(latest.datetime) ? e : latest
+  ).datetime
 }
 
 // ─── Helper: Calculate mean and standard deviation ─────────────────────────────
@@ -262,6 +304,31 @@ export function aggregateStats(trades: Trade[]): TradeStats {
     .map((t) => t.r_multiple ?? calcRMultiple(t))
     .filter((r) => r != null) as number[]
 
+  // ─── Additional Metrics (M6.5) ───────────────────────────────────────────────
+
+  // Expectancy: (Avg Win × Win% - Avg Loss × Loss%)
+  const winRate = closed.length > 0 ? winners.length / closed.length : 0
+  const lossRate = closed.length > 0 ? losers.length / closed.length : 0
+  const avgWin = winners.length > 0 ? totalWin / winners.length : 0
+  const avgLoss = losers.length > 0 ? totalLoss / losers.length : 0
+  const expectancy = avgWin * winRate - avgLoss * lossRate
+
+  // Average loss as percentage
+  const avgLossPercent = avgLoss > 0 && closed.length > 0 ? -((avgLoss / (totalPnl / closed.length || 1)) * 100) : 0
+
+  // Avg hold time for wins vs losses
+  const winHoldTimes = winners.map((t) => t.holding_period_days ?? 0)
+  const lossHoldTimes = losers.map((t) => t.holding_period_days ?? 0)
+  const avgWinHoldTime = winHoldTimes.length > 0 ? winHoldTimes.reduce((a, b) => a + b, 0) / winHoldTimes.length : 0
+  const avgLossHoldTime = lossHoldTimes.length > 0 ? lossHoldTimes.reduce((a, b) => a + b, 0) / lossHoldTimes.length : 0
+
+  // Average trade size (quantity per trade)
+  const avgSize = closed.length > 0 ? closed.reduce((s, t) => s + (t.quantity ?? 0), 0) / closed.length : 0
+
+  // Average daily volume (trades per day)
+  const tradeDays = new Set(closed.map((t) => t.entry_date.slice(0, 10))).size
+  const avgDailyTrades = tradeDays > 0 ? closed.length / tradeDays : 0
+
   // ─── Advanced Metrics (M4) ───────────────────────────────────────────────────
 
   // Sharpe Ratio: mean(rMultiples) / stdev(rMultiples)
@@ -344,7 +411,9 @@ export function aggregateStats(trades: Trade[]): TradeStats {
     total_pnl: totalPnl,
     avg_win: winners.length > 0 ? totalWin / winners.length : 0,
     avg_loss: losers.length > 0 ? -totalLoss / losers.length : 0,
+    avg_loss_percent: avgLossPercent,
     profit_factor: totalLoss > 0 ? totalWin / totalLoss : totalWin > 0 ? Infinity : 0,
+    expectancy,
     avg_r_multiple: rMultiples.length > 0 ? rMultiples.reduce((a, b) => a + b, 0) / rMultiples.length : 0,
     best_trade: closed.length > 0 ? Math.max(...closed.map((t) => t.net_pnl ?? 0)) : 0,
     worst_trade: closed.length > 0 ? Math.min(...closed.map((t) => t.net_pnl ?? 0)) : 0,
@@ -352,6 +421,10 @@ export function aggregateStats(trades: Trade[]): TradeStats {
       closed.length > 0
         ? closed.reduce((s, t) => s + (t.holding_period_days ?? 0), 0) / closed.length
         : 0,
+    avg_win_hold_time: avgWinHoldTime,
+    avg_loss_hold_time: avgLossHoldTime,
+    avg_size: avgSize,
+    avg_daily_trades: avgDailyTrades,
     by_asset_type,
     by_strategy,
     by_sector,

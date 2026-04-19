@@ -8,7 +8,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { useAiStore } from '@/store/aiStore'
 import { useStrategyStore } from '@/store/strategyStore'
-import { STRATEGY_TAG_LABELS } from '@/lib/tradeUtils'
+import { STRATEGY_TAG_LABELS, calcExitPriceFromExecutions } from '@/lib/tradeUtils'
 import { cn } from '@/lib/utils'
 import type { CreateTradeInput, StrategyTag } from '@/types'
 
@@ -163,7 +163,7 @@ export function NewTradePage() {
   const { state } = useLocation()
   const prefill = (state as { prefill?: Partial<TradeFormData> } | null)?.prefill
   const isEdit = !!id
-  const { user } = useAuthStore()
+  const { user, selectedAccountId, selectedAccount } = useAuthStore()
   const { createTrade, updateTrade, trades, uploadScreenshot, deleteScreenshot } = useTradeStore()
   const { runSetupCheck, setupLoading, setupResult, setupError, clearSetupResult } = useAiStore()
   const { strategies, fetchStrategies } = useStrategyStore()
@@ -210,7 +210,31 @@ export function NewTradePage() {
   const status = watch('status')
   const selectedTags = watch('strategy_tags')
   const ticker = watch('ticker')
+  const entryPrice = watch('entry_price')
+  const quantity = watch('quantity')
+  const stopLoss = watch('stop_loss')
+  const fees = watch('fees')
   const [selectedStrategyId, setSelectedStrategyId] = useState<string>('')
+
+  // Auto-calculate initial_risk when entry_price, stop_loss, or quantity changes
+  useEffect(() => {
+    if (entryPrice && quantity && stopLoss) {
+      const riskPerShare = Math.abs(entryPrice - stopLoss)
+      const totalRisk = riskPerShare * quantity - (fees || 0)
+      setValue('initial_risk', Math.max(0, totalRisk), { shouldDirty: false })
+    }
+  }, [entryPrice, quantity, stopLoss, fees, setValue])
+
+  // Auto-calculate risk_percent based on selected account's starting balance
+  useEffect(() => {
+    const accountSize = selectedAccount?.starting_balance || 10000
+    const initialRisk = getValues('initial_risk')
+
+    if (accountSize && initialRisk) {
+      const riskPercent = (initialRisk / accountSize) * 100
+      setValue('risk_percent', Math.round(riskPercent * 100) / 100, { shouldDirty: false })
+    }
+  }, [entryPrice, quantity, stopLoss, fees, selectedAccount, getValues, setValue])
 
   // Populate form when editing
   useEffect(() => {
@@ -261,6 +285,16 @@ export function NewTradePage() {
       controller.abort()
     }
   }, [ticker, assetType, isEdit, getValues, setValue])
+
+  // Auto-fill exit_price from executions when status changes to 'closed'
+  useEffect(() => {
+    if (status === 'closed' && existingTrade?.executions && existingTrade.executions.length > 0) {
+      const calculatedExitPrice = calcExitPriceFromExecutions(existingTrade)
+      if (calculatedExitPrice && !getValues('exit_price')) {
+        setValue('exit_price', Math.round(calculatedExitPrice * 10000) / 10000, { shouldDirty: false })
+      }
+    }
+  }, [status, existingTrade, getValues, setValue])
 
   const toggleTag = (tag: string) => {
     const current = selectedTags ?? []
@@ -317,13 +351,31 @@ export function NewTradePage() {
   }
 
   const onSubmit = async (data: TradeFormData) => {
-    if (!user?.id) return
+    if (!user?.id || !selectedAccountId) return
     console.log('✅ onSubmit fired', data)
+
+    // Auto-fill exit_price from executions if status is closed and field is empty
+    let exitPrice = data.exit_price
+    if (data.status === 'closed' && !exitPrice && existingTrade?.executions?.length) {
+      const calculatedExitPrice = calcExitPriceFromExecutions(existingTrade)
+      if (calculatedExitPrice) {
+        exitPrice = Math.round(calculatedExitPrice * 10000) / 10000
+      }
+    }
+
     const basePayload: Partial<CreateTradeInput> = {
       ...data,
       // Ensure dates are stored as ISO strings
       entry_date: new Date(data.entry_date.replace('T', ' ')).toISOString(),
       exit_date: data.exit_date ? new Date(data.exit_date.replace('T', ' ')).toISOString() : undefined,
+      // Explicitly clear empty optional number fields (handle cleared form inputs)
+      // exit_price is recalculated above if needed, then cleared if invalid
+      exit_price: exitPrice && exitPrice > 0 ? exitPrice : undefined,
+      stop_loss: data.stop_loss && data.stop_loss > 0 ? data.stop_loss : undefined,
+      take_profit: data.take_profit && data.take_profit > 0 ? data.take_profit : undefined,
+      initial_risk: data.initial_risk && data.initial_risk > 0 ? data.initial_risk : undefined,
+      risk_percent: data.risk_percent && data.risk_percent > 0 ? data.risk_percent : undefined,
+      fees: data.fees && data.fees > 0 ? data.fees : undefined,
       // Give each option leg a stable id for screenshots/UI
       option_legs: data.option_legs?.map((leg) => ({ ...leg, id: crypto.randomUUID() })),
       // Narrow execution_quality to the trade type
@@ -346,7 +398,8 @@ export function NewTradePage() {
       const createPayload = {
         ...(basePayload as CreateTradeInput),
         user_id: user.id,
-      } as CreateTradeInput & { user_id: string }
+        account_id: selectedAccountId,
+      } as CreateTradeInput & { user_id: string; account_id: string }
       const created = await createTrade(createPayload)
       if (created) {
         for (const file of pendingFiles) {

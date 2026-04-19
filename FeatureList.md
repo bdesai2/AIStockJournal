@@ -1,4 +1,4 @@
-# Stock Journal - Feature List
+# Trade Reflection - Feature List
 
 ## Milestone 1: Complete ✅
 

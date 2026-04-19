@@ -1,9 +1,11 @@
 import { create } from 'zustand'
 import { aiApi, type SetupCheckResult, type WeeklyDigestResult, type TradeAnalysisResult } from '@/lib/ai'
 import { useTradeStore } from '@/store/tradeStore'
+import { useAuthStore } from '@/store/authStore'
 import { db, supabase } from '@/lib/supabase'
 import type { Trade } from '@/types'
 import { useNotificationStore } from '@/store/notificationStore'
+import { canAccess } from '@/lib/featureGates'
 
 // ─── State Interface ──────────────────────────────────────────────────────────
 
@@ -62,6 +64,16 @@ export const useAiStore = create<AiState>((set) => ({
   gradeTrade: async (trade, opts) => {
     const force = opts?.force ?? false
 
+    // Check if user has access to trade grading
+    const subscription = useAuthStore.getState().subscription
+    if (!canAccess('TRADE_GRADING', subscription?.tier || 'free')) {
+      set({
+        gradeLoading: false,
+        gradeError: 'Trade grading is a Pro feature. Upgrade to unlock AI-powered trade analysis.',
+      })
+      return
+    }
+
     // If we already have a non-expired grade and this is not an explicit re-grade,
     // just reuse the cached result to avoid unnecessary AI calls.
     const now = new Date()
@@ -110,6 +122,16 @@ export const useAiStore = create<AiState>((set) => ({
   },
 
   runSetupCheck: async (params) => {
+    // Check if user has access to setup validation
+    const subscription = useAuthStore.getState().subscription
+    if (!canAccess('SETUP_VALIDATION', subscription?.tier || 'free')) {
+      set({
+        setupLoading: false,
+        setupError: 'Setup validation is a Pro feature. Upgrade to unlock pre-trade quality checks.',
+      })
+      return
+    }
+
     set({ setupLoading: true, setupError: null, setupResult: null })
     try {
       const result = await aiApi.setupCheck(params)
@@ -125,6 +147,16 @@ export const useAiStore = create<AiState>((set) => ({
   clearSetupResult: () => set({ setupResult: null, setupError: null }),
 
   runWeeklyDigest: async (trades) => {
+    // Check if user has access to weekly digest
+    const subscription = useAuthStore.getState().subscription
+    if (!canAccess('WEEKLY_DIGEST', subscription?.tier || 'free')) {
+      set({
+        digestLoading: false,
+        digestError: 'Weekly digest is a Pro feature. Upgrade to unlock AI pattern analysis and lessons.',
+      })
+      return
+    }
+
     set({ digestLoading: true, digestError: null, digestResult: null })
     try {
       const result = await aiApi.weeklyDigest(trades)
@@ -163,6 +195,16 @@ export const useAiStore = create<AiState>((set) => ({
   },
 
   analyzeOpenTrade: async (trade) => {
+    // Check if user has access to open trade analysis
+    const subscription = useAuthStore.getState().subscription
+    if (!canAccess('OPEN_TRADE_ANALYSIS', subscription?.tier || 'free')) {
+      set({
+        analysisLoading: false,
+        analysisError: 'Open trade analysis is a Pro feature. Upgrade to unlock real-time AI recommendations.',
+      })
+      return
+    }
+
     set({ analysisLoading: true, analysisError: null, analysisResult: null })
     try {
       const result = await aiApi.tradeAnalysis(trade)

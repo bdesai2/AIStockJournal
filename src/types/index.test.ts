@@ -143,6 +143,7 @@ describe('Trade Execution Types', () => {
       const trade: Trade = {
         id: 'trade-1',
         user_id: 'user-1',
+        account_id: 'account-1',
         ticker: 'AAPL',
         asset_type: 'option',
         direction: 'long',
@@ -194,6 +195,7 @@ describe('Trade Execution Types', () => {
       const trade: Trade = {
         id: 'trade-2',
         user_id: 'user-1',
+        account_id: 'account-1',
         ticker: 'SPY',
         asset_type: 'option',
         direction: 'short',
@@ -254,6 +256,7 @@ describe('Trade Execution Types', () => {
       const trade: Trade = {
         id: 'trade-div',
         user_id: 'user-1',
+        account_id: 'account-1',
         ticker: 'MSFT',
         asset_type: 'stock',
         direction: 'long',
@@ -329,6 +332,7 @@ describe('Trade Execution Types', () => {
       const optionTrade: Trade = {
         id: 'trade-opt',
         user_id: 'user-1',
+        account_id: 'account-1',
         ticker: 'AAPL',
         asset_type: 'option',
         direction: 'long',

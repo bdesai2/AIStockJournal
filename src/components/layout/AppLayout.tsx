@@ -17,8 +17,13 @@ import { useTradeStore } from '@/store/tradeStore'
 import { auth } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { NotificationToaster } from '@/components/notifications/NotificationToaster'
+import { AccountBalanceCard } from '@/components/account/AccountBalanceCard'
+import { AccountSelector } from '@/components/navigation/AccountSelector'
+import { ManageAccountsModal } from '@/components/modals/ManageAccountsModal'
+import { Footer } from '@/components/layout/Footer'
+import { SessionTimeoutWarning } from '@/components/security/SessionTimeoutWarning'
 import { useNotificationStore, type Notification } from '@/store/notificationStore'
-import { aggregateStats, fmt, pnlColor } from '@/lib/tradeUtils'
+import { aggregateStats } from '@/lib/tradeUtils'
 
 const NAV_ITEMS = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -28,10 +33,11 @@ const NAV_ITEMS = [
 ]
 
 export function AppLayout() {
-  const { user, profile } = useAuthStore()
+  const { user, profile, selectedAccountId, subscription, fetchSubscription } = useAuthStore()
   const { trades, fetchTrades } = useTradeStore()
   const navigate = useNavigate()
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [accountsModalOpen, setAccountsModalOpen] = useState(false)
   const notifications = useNotificationStore((s) => s.notifications)
   const clearAllNotifications = useNotificationStore((s) => s.clearAll)
 
@@ -66,16 +72,17 @@ export function AppLayout() {
     : user?.email?.[0]?.toUpperCase() ?? '?'
 
   useEffect(() => {
-    if (user?.id && trades.length === 0) {
-      fetchTrades(user.id)
+    if (user?.id && selectedAccountId && trades.length === 0) {
+      fetchTrades(user.id, selectedAccountId)
     }
-  }, [user?.id, trades.length, fetchTrades])
+
+    // Refresh subscription data when layout loads (catches admin changes)
+    if (user?.id) {
+      fetchSubscription(user.id)
+    }
+  }, [user?.id, selectedAccountId, trades.length, fetchTrades, fetchSubscription])
 
   const stats = useMemo(() => aggregateStats(trades), [trades])
-  const winRatePercent = stats.total_trades > 0 ? stats.win_rate * 100 : 0
-  const profitFactorDisplay = !Number.isFinite(stats.profit_factor)
-    ? '∞'
-    : stats.profit_factor.toFixed(2)
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -84,33 +91,17 @@ export function AppLayout() {
         {/* Logo */}
         <div className="h-16 flex items-center gap-2.5 px-5 border-b border-border">
           <div className="w-7 h-7 rounded bg-primary flex items-center justify-center flex-shrink-0">
-            <span className="font-display text-background text-base leading-none">S</span>
+            <span className="font-display text-background text-base leading-none">T</span>
           </div>
           <div>
-            <p className="font-display text-lg tracking-wider leading-none">STONKJOURNAL</p>
-            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">v{version} · M3</p>
+            <p className="font-display text-lg tracking-wider leading-none">TRADE REFLECTION</p>
+            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">v{version} · M6.5</p>
           </div>
         </div>
 
-        {/* Account snapshot */}
-        <div className="px-3 pt-3 pb-2 border-b border-border/60">
-          <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground px-1 mb-1.5">
-            Overview
-          </p>
-          <div className="space-y-1.5 text-[11px] font-mono">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Total P&L</span>
-              <span className={pnlColor(stats.total_pnl)}>{fmt.currency(stats.total_pnl)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Win rate</span>
-              <span>{winRatePercent.toFixed(0)}%</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Profit factor</span>
-              <span>{stats.total_trades > 0 ? profitFactorDisplay : '—'}</span>
-            </div>
-          </div>
+        {/* Account Balance Card */}
+        <div className="px-3 pt-3 pb-2">
+          <AccountBalanceCard totalPnL={stats.total_pnl} />
         </div>
 
         {/* New Trade CTA */}
@@ -191,6 +182,17 @@ export function AppLayout() {
                 {profile?.display_name ?? 'Trader'}
               </p>
               <p className="text-[11px] text-muted-foreground truncate">{user?.email}</p>
+              {subscription?.tier && (
+                <div className="mt-1">
+                  <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded ${
+                    subscription.tier === 'pro'
+                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                      : 'bg-muted text-muted-foreground border border-border'
+                  }`}>
+                    {subscription.tier.toUpperCase()}
+                  </span>
+                </div>
+              )}
             </div>
             <button
               onClick={handleSignOut}
@@ -207,6 +209,10 @@ export function AppLayout() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {/* Top bar */}
         <header className="h-16 flex items-center justify-between px-6 border-b border-border bg-card/50 flex-shrink-0">
+          <div className="flex items-center gap-4">
+            {/* Account Selector */}
+            <AccountSelector onManageClick={() => setAccountsModalOpen(true)} />
+          </div>
           <div className="flex items-center gap-2">
             {/* Breadcrumb injected by pages via context if needed */}
           </div>
@@ -271,13 +277,20 @@ export function AppLayout() {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto flex flex-col">
           <Outlet />
+          <Footer />
         </main>
 
         {/* Global in-app notifications */}
         <NotificationToaster />
       </div>
+
+      {/* Manage Accounts Modal */}
+      <ManageAccountsModal isOpen={accountsModalOpen} onClose={() => setAccountsModalOpen(false)} />
+
+      {/* Session Timeout Warning */}
+      <SessionTimeoutWarning />
     </div>
   )
 }

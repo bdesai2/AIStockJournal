@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Lightbulb, Image as ImageIcon, Loader2, PlusCircle, Trash2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useStrategyStore } from '@/store/strategyStore'
+import { useCanAccess } from '@/lib/featureGates'
 import type { Strategy, StrategyTag } from '@/types'
 import { STRATEGY_TAG_LABELS } from '@/lib/tradeUtils'
 import { cn } from '@/lib/utils'
 import { RichTextEditor } from '@/components/ui/RichTextEditor'
+import { UpgradeModal } from '@/components/premium/UpgradeModal'
 
 interface StrategyFormState {
   name: string
@@ -39,7 +42,8 @@ const EMPTY_FORM: StrategyFormState = {
 }
 
 export function StrategiesPage() {
-  const { user } = useAuthStore()
+  const navigate = useNavigate()
+  const { user, subscription } = useAuthStore()
   const {
     strategies,
     loading,
@@ -51,6 +55,10 @@ export function StrategiesPage() {
     uploadScreenshot,
     deleteScreenshot,
   } = useStrategyStore()
+
+  // Feature access check
+  const canCreateStrategies = useCanAccess('STRATEGY_LIBRARY', subscription?.tier)
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -97,6 +105,10 @@ export function StrategiesPage() {
   }, [selectedStrategy?.id])
 
   const startNew = () => {
+    if (!canCreateStrategies) {
+      setShowUpgradeModal(true)
+      return
+    }
     setEditingId(null)
     setSelectedId(null)
     setMode('create')
@@ -276,120 +288,109 @@ export function StrategiesPage() {
 
         {/* Editor / view + diagram */}
         <div className="space-y-4">
-          {/* View mode: blog-style strategy article */}
+          {/* View mode: cheatsheet-style strategy card */}
           {mode === 'view' && selectedStrategy && (
-            <div className="rounded-lg border border-border bg-card p-5 space-y-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-display tracking-wide mb-1">{selectedStrategy.name}</h2>
-                  <p className="text-[11px] text-muted-foreground">
-                    Confidence level: <span className="font-semibold">{selectedStrategy.confidence_level ?? 3}/5</span>
-                    {typeof selectedStrategy.likelihood_of_success === 'number' && (
-                      <>
-                        {' '}
-                        · Estimated win rate{' '}
-                        <span className="font-mono">{selectedStrategy.likelihood_of_success}%</span>
-                      </>
-                    )}
-                  </p>
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <h2 className="text-lg font-display tracking-wide mb-1">{selectedStrategy.name}</h2>
+                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                      <span>Confidence: <span className="font-mono font-semibold text-foreground">{selectedStrategy.confidence_level ?? 3}/5</span></span>
+                      {typeof selectedStrategy.likelihood_of_success === 'number' && (
+                        <span>Win rate: <span className="font-mono font-semibold text-foreground">{selectedStrategy.likelihood_of_success}%</span></span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!canCreateStrategies) {
+                        setShowUpgradeModal(true)
+                        return
+                      }
+                      if (!selectedStrategy) return
+                      setEditingId(selectedStrategy.id)
+                      setMode('edit')
+                    }}
+                    className="px-3 py-1.5 rounded-md border border-border text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-primary/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Edit
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!selectedStrategy) return
-                    setEditingId(selectedStrategy.id)
-                    setMode('edit')
-                  }}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-border text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/60"
-                >
-                  Edit strategy
-                </button>
+
+                {selectedStrategy.description && (
+                  <p className="text-[12px] text-muted-foreground leading-relaxed">
+                    {stripHtml(selectedStrategy.description)}
+                  </p>
+                )}
               </div>
 
+              {/* Rules grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {selectedStrategy.setup_rules && (
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-amber-400/80 mb-2">Setup</p>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      {stripHtml(selectedStrategy.setup_rules)}
+                    </p>
+                  </div>
+                )}
+                {selectedStrategy.entry_conditions && (
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-emerald-400/80 mb-2">Entry</p>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      {stripHtml(selectedStrategy.entry_conditions)}
+                    </p>
+                  </div>
+                )}
+                {selectedStrategy.exit_conditions && (
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-rose-400/80 mb-2">Exit</p>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      {stripHtml(selectedStrategy.exit_conditions)}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Strengths & Weaknesses */}
+              {(selectedStrategy.strengths || selectedStrategy.weaknesses) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {selectedStrategy.strengths && (
+                    <div className="rounded-lg border border-border/60 bg-emerald-950/20 p-3">
+                      <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-emerald-400 mb-2">✓ Strengths</p>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        {stripHtml(selectedStrategy.strengths)}
+                      </p>
+                    </div>
+                  )}
+                  {selectedStrategy.weaknesses && (
+                    <div className="rounded-lg border border-border/60 bg-amber-950/20 p-3">
+                      <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-amber-400 mb-2">⚠ Risks</p>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        {stripHtml(selectedStrategy.weaknesses)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tags */}
               {selectedStrategy.tags && selectedStrategy.tags.length > 0 && (
-                <div className="mt-3">
-                  <p className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground mb-1">
-                    Strategy Tags
-                  </p>
+                <div className="rounded-lg border border-border bg-card p-3">
+                  <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-muted-foreground mb-2">Tags</p>
                   <div className="flex flex-wrap gap-1.5">
                     {selectedStrategy.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="px-2 py-0.5 rounded text-[11px] font-mono bg-primary/10 text-primary border border-primary/30"
+                        className="px-2 py-0.5 rounded-sm text-[10px] font-mono bg-primary/15 text-primary/90 border border-primary/30"
                       >
                         {STRATEGY_TAG_LABELS[tag] ?? tag}
                       </span>
                     ))}
                   </div>
-                </div>
-              )}
-
-              {selectedStrategy.description && (
-                <section className="space-y-1">
-                  <h3 className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">Overview</h3>
-                  <div
-                    className="prose prose-invert prose-sm max-w-none [&>ul]:mt-1 [&>ol]:mt-1"
-                    // eslint-disable-next-line react/no-danger
-                    dangerouslySetInnerHTML={{ __html: selectedStrategy.description }}
-                  />
-                </section>
-              )}
-
-              {selectedStrategy.setup_rules && (
-                <section className="space-y-1">
-                  <h3 className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">Setup rules</h3>
-                  <div
-                    className="prose prose-invert prose-sm max-w-none [&>ul]:mt-1 [&>ol]:mt-1"
-                    // eslint-disable-next-line react/no-danger
-                    dangerouslySetInnerHTML={{ __html: selectedStrategy.setup_rules }}
-                  />
-                </section>
-              )}
-
-              {selectedStrategy.entry_conditions && (
-                <section className="space-y-1">
-                  <h3 className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">Entry playbook</h3>
-                  <div
-                    className="prose prose-invert prose-sm max-w-none [&>ul]:mt-1 [&>ol]:mt-1"
-                    // eslint-disable-next-line react/no-danger
-                    dangerouslySetInnerHTML={{ __html: selectedStrategy.entry_conditions }}
-                  />
-                </section>
-              )}
-
-              {selectedStrategy.exit_conditions && (
-                <section className="space-y-1">
-                  <h3 className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">Exit plan</h3>
-                  <div
-                    className="prose prose-invert prose-sm max-w-none [&>ul]:mt-1 [&>ol]:mt-1"
-                    // eslint-disable-next-line react/no-danger
-                    dangerouslySetInnerHTML={{ __html: selectedStrategy.exit_conditions }}
-                  />
-                </section>
-              )}
-
-              {(selectedStrategy.strengths || selectedStrategy.weaknesses) && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {selectedStrategy.strengths && (
-                    <section className="space-y-1">
-                      <h3 className="text-xs font-semibold tracking-wide uppercase text-emerald-400/90">Strengths</h3>
-                      <div
-                        className="prose prose-invert prose-sm max-w-none [&>ul]:mt-1 [&>ol]:mt-1"
-                        // eslint-disable-next-line react/no-danger
-                        dangerouslySetInnerHTML={{ __html: selectedStrategy.strengths }}
-                      />
-                    </section>
-                  )}
-                  {selectedStrategy.weaknesses && (
-                    <section className="space-y-1">
-                      <h3 className="text-xs font-semibold tracking-wide uppercase text-amber-400/90">Weaknesses / risks</h3>
-                      <div
-                        className="prose prose-invert prose-sm max-w-none [&>ul]:mt-1 [&>ol]:mt-1"
-                        // eslint-disable-next-line react/no-danger
-                        dangerouslySetInnerHTML={{ __html: selectedStrategy.weaknesses }}
-                      />
-                    </section>
-                  )}
                 </div>
               )}
             </div>
@@ -700,6 +701,17 @@ export function StrategiesPage() {
           </div>
         </div>
       </div>
+
+      {/* Upgrade modal for Strategy Library */}
+      {showUpgradeModal && (
+        <UpgradeModal
+          onClose={() => setShowUpgradeModal(false)}
+          onUpgrade={() => {
+            setShowUpgradeModal(false)
+            navigate('/pricing')
+          }}
+        />
+      )}
     </div>
   )
 }

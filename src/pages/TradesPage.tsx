@@ -54,7 +54,7 @@ function getInitialFilters(): {
 
 export function TradesPage() {
   const navigate = useNavigate()
-  const { user } = useAuthStore()
+  const { user, selectedAccountId } = useAuthStore()
   const { trades, loading, fetchTrades } = useTradeStore()
 
   const [search, setSearch] = useState(() => getInitialFilters().search)
@@ -66,8 +66,8 @@ export function TradesPage() {
   const [sortDir, setSortDir] = useState<SortDir>(() => getInitialFilters().sortDir)
 
   useEffect(() => {
-    if (user?.id) fetchTrades(user.id)
-  }, [user?.id, fetchTrades])
+    if (user?.id && selectedAccountId) fetchTrades(user.id, selectedAccountId)
+  }, [user?.id, selectedAccountId, fetchTrades])
 
   // Persist filters/sort whenever they change
   useEffect(() => {

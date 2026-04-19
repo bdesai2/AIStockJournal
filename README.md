@@ -1,4 +1,4 @@
-# StonkJournal — Milestone 1
+# Trade Reflection — Milestone 1
 
 AI-powered trading journal built with React 18 + Vite, Supabase, Tailwind CSS, and Recharts.
 
@@ -53,7 +53,7 @@ supabase/
 
 ```bash
 git clone <your-repo>
-cd stonk-journal
+cd trade-reflection
 npm install
 ```
 

@@ -27,9 +27,9 @@ export function AuthLayout() {
         <div className="relative">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded bg-primary flex items-center justify-center">
-              <span className="font-display text-background text-lg leading-none">S</span>
+              <span className="font-display text-background text-lg leading-none">T</span>
             </div>
-            <span className="font-display text-2xl tracking-wider">STONKJOURNAL</span>
+            <span className="font-display text-2xl tracking-wider">TRADE REFLECTION</span>
           </div>
           <p className="text-muted-foreground text-sm">AI-Powered Trade Journal</p>
         </div>

@@ -11,6 +11,12 @@ import { NewTradePage } from '@/pages/NewTradePage'
 import { JournalPage } from '@/pages/JournalPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { StrategiesPage } from '@/pages/StrategiesPage'
+import { PricingPage } from '@/pages/PricingPage'
+import { AdminDashboardPage } from '@/pages/AdminDashboardPage'
+import { PrivacyPolicyPage } from '@/pages/PrivacyPolicyPage'
+import { TermsOfServicePage } from '@/pages/TermsOfServicePage'
+import { DisclaimersPage } from '@/pages/DisclaimersPage'
+import { CookiePolicyPage } from '@/pages/CookiePolicyPage'
 
 export const router = createBrowserRouter([
   {
@@ -37,7 +43,13 @@ export const router = createBrowserRouter([
       { path: 'trades/:id/edit', element: <NewTradePage /> },
       { path: 'journal', element: <JournalPage /> },
       { path: 'strategies', element: <StrategiesPage /> },
+      { path: 'pricing', element: <PricingPage /> },
       { path: 'settings', element: <SettingsPage /> },
+      { path: 'admin', element: <AdminDashboardPage /> },
+      { path: 'privacy', element: <PrivacyPolicyPage /> },
+      { path: 'terms', element: <TermsOfServicePage /> },
+      { path: 'disclaimers', element: <DisclaimersPage /> },
+      { path: 'cookie-policy', element: <CookiePolicyPage /> },
     ],
   },
   { path: '*', element: <Navigate to="/dashboard" replace /> },
