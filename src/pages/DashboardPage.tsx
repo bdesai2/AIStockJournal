@@ -5,12 +5,10 @@ import { AreaChart,Area,XAxis,YAxis,Tooltip,ResponsiveContainer,BarChart,Bar,Cel
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { useAiStore } from '@/store/aiStore'
-import { useStrategyStore } from '@/store/strategyStore'
 import { aggregateStats, fmt, STRATEGY_TAG_LABELS } from '@/lib/tradeUtils'
 import { useCanAccess } from '@/lib/featureGates'
 import { TradeRow } from '@/components/trades/TradeRow'
 import { Tooltip as UITooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
-import { LockedFeature } from '@/components/premium/LockedFeature'
 import { db } from '@/lib/supabase'
 import type { CSSProperties } from 'react'
 import type { Trade, StrategyTag } from '@/types'
@@ -86,7 +84,6 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const { user, selectedAccountId, subscription, fetchSubscription } = useAuthStore()
   const { trades, loading, fetchTrades } = useTradeStore()
-  const { strategies } = useStrategyStore()
   const { runWeeklyDigest, digestLoading, digestResult, digestError, clearDigestError } = useAiStore()
   const [digestOpen, setDigestOpen] = useState(true) // Auto-expand if digest exists
   const [lastDigest, setLastDigest] = useState<any>(null)

@@ -705,6 +705,7 @@ export function StrategiesPage() {
       {/* Upgrade modal for Strategy Library */}
       {showUpgradeModal && (
         <UpgradeModal
+          isOpen={true}
           onClose={() => setShowUpgradeModal(false)}
           onUpgrade={() => {
             setShowUpgradeModal(false)

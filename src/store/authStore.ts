@@ -6,7 +6,6 @@ import {
   createCheckoutSession,
   startProTrial,
   cancelSubscription,
-  getSubscriptionDetails,
 } from '@/lib/stripe'
 
 interface AuthState {
@@ -248,8 +247,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({
         subscription: {
-          tier: tierName,
-          status: subData.status,
+          tier: (tierName as 'free' | 'pro') || 'free',
+          status: subData.status as any,
           startDate: subData.start_date,
           renewalDate: subData.renewal_date,
           trialEndsAt: subData.trial_end_date,

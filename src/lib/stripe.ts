@@ -30,7 +30,10 @@ export async function redirectToCheckout(checkoutSessionId: string) {
     throw new Error('Stripe failed to initialize')
   }
 
-  const { error } = await stripe.redirectToCheckout({
+  // Note: redirectToCheckout is a method on the Stripe.js client
+  // Cast to any to work around TypeScript issues with Stripe.js types
+  const stripeClient = stripe as any
+  const { error } = await stripeClient.redirectToCheckout({
     sessionId: checkoutSessionId,
   })
 

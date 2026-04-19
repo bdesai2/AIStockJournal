@@ -247,5 +247,3 @@ export function getUpgradeMessage(featureKey: string): string {
 
   return `Upgrade to Pro to access ${feature.name}`
 }
-
-export type { FeatureGate }

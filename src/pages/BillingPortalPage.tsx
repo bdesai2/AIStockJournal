@@ -7,7 +7,7 @@ import { openCustomerPortal } from '@/lib/stripe'
 
 export function BillingPortalPage() {
   const navigate = useNavigate()
-  const { subscription, subscriptionLoading, cancelProSubscription, upgradeToProTrial } = useAuthStore()
+  const { subscription, subscriptionLoading, upgradeToProTrial } = useAuthStore()
   const [isLoading, setIsLoading] = useState(false)
 
   const handleManageSubscription = async () => {
