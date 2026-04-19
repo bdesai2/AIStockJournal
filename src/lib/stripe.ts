@@ -25,21 +25,10 @@ export function getStripe(): Promise<Stripe | null> {
  * Server endpoint should handle creating the checkout session
  */
 export async function redirectToCheckout(checkoutSessionId: string) {
-  const stripe = await getStripe()
-  if (!stripe) {
-    throw new Error('Stripe failed to initialize')
-  }
-
-  // Note: redirectToCheckout is a method on the Stripe.js client
-  // Cast to any to work around TypeScript issues with Stripe.js types
-  const stripeClient = stripe as any
-  const { error } = await stripeClient.redirectToCheckout({
-    sessionId: checkoutSessionId,
-  })
-
-  if (error) {
-    throw new Error(error.message || 'Failed to redirect to checkout')
-  }
+  // Modern Stripe checkout uses direct URL navigation
+  // Stripe provides a hosted checkout that can be accessed via sessionId
+  const checkoutUrl = `https://checkout.stripe.com/pay/${checkoutSessionId}`
+  window.location.href = checkoutUrl
 }
 
 /**
