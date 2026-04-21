@@ -124,14 +124,42 @@ export const aiApi = {
   /**
    * Analyze patterns from the last 30 closed trades
    */
-  weeklyDigest: (trades: Trade[]) =>
-    post<WeeklyDigestResult>('/api/ai/weekly-digest', { trades }),
+  weeklyDigest: (trades: Trade[]) => {
+    // Extract only needed fields for each trade
+    const tradesForDigest = trades.map(trade => ({
+      ticker: trade.ticker,
+      direction: trade.direction,
+      entry_price: trade.entry_price,
+      exit_price: trade.exit_price,
+      net_pnl: trade.net_pnl,
+      pnl_percent: trade.pnl_percent,
+      r_multiple: trade.r_multiple,
+      strategy_tags: trade.strategy_tags,
+      execution_quality: trade.execution_quality,
+      setup_notes: trade.setup_notes,
+      mistakes: trade.mistakes,
+      lessons: trade.lessons,
+    }))
+    return post<WeeklyDigestResult>('/api/ai/weekly-digest', { trades: tradesForDigest })
+  },
 
   /**
    * Analyze an open/active trade with current market context
    */
-  tradeAnalysis: (trade: Trade) =>
-    post<TradeAnalysisResult>('/api/ai/trade-analysis', { trade }),
+  tradeAnalysis: (trade: Trade) => {
+    const tradeForAnalysis = {
+      ticker: trade.ticker,
+      asset_type: trade.asset_type,
+      direction: trade.direction,
+      entry_price: trade.entry_price,
+      quantity: trade.quantity,
+      entry_date: trade.entry_date,
+      stop_loss: trade.stop_loss,
+      take_profit: trade.take_profit,
+      setup_notes: trade.setup_notes,
+    }
+    return post<TradeAnalysisResult>('/api/ai/trade-analysis', { trade: tradeForAnalysis })
+  },
 
   /**
    * Evaluate a potential trade setup before entry
