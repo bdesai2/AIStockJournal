@@ -86,18 +86,17 @@ export const aiApi = {
    * Grade a closed trade using Claude
    */
   gradeTrade: (trade: Trade) => {
-    // Extract only the fields we need to send to the backend
-    const tradeForGrading = {
-      id: trade.id,
+    // Send fields at top level (not nested)
+    return post<GradeTradeResult>('/api/ai/grade-trade', {
       ticker: trade.ticker,
       status: trade.status,
-      asset_type: trade.asset_type,
-      direction: trade.direction,
       entry_price: trade.entry_price,
       exit_price: trade.exit_price,
       entry_date: trade.entry_date,
       exit_date: trade.exit_date,
       quantity: trade.quantity,
+      asset_type: trade.asset_type,
+      direction: trade.direction,
       r_multiple: trade.r_multiple,
       net_pnl: trade.net_pnl,
       execution_quality: trade.execution_quality,
@@ -105,8 +104,7 @@ export const aiApi = {
       setup_notes: trade.setup_notes,
       mistakes: trade.mistakes,
       lessons: trade.lessons,
-    }
-    return post<GradeTradeResult>('/api/ai/grade-trade', { trade: tradeForGrading })
+    })
   },
 
   /**
@@ -146,8 +144,8 @@ export const aiApi = {
   /**
    * Analyze an open/active trade with current market context
    */
-  tradeAnalysis: (trade: Trade) => {
-    const tradeForAnalysis = {
+  tradeAnalysis: (trade: Trade) =>
+    post<TradeAnalysisResult>('/api/ai/trade-analysis', {
       ticker: trade.ticker,
       asset_type: trade.asset_type,
       direction: trade.direction,
@@ -157,9 +155,7 @@ export const aiApi = {
       stop_loss: trade.stop_loss,
       take_profit: trade.take_profit,
       setup_notes: trade.setup_notes,
-    }
-    return post<TradeAnalysisResult>('/api/ai/trade-analysis', { trade: tradeForAnalysis })
-  },
+    }),
 
   /**
    * Evaluate a potential trade setup before entry
