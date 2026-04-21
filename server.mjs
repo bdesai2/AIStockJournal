@@ -25,9 +25,25 @@ const PORT = process.env.PORT || 3001
 
 // Middleware
 app.use(cors())
-// Raw body for Stripe webhooks (must come before JSON parser)
-app.use(express.raw({ type: 'application/json', path: '/api/stripe/webhook' }))
-app.use(express.json())
+
+// Custom middleware: use raw body ONLY for Stripe webhook, use JSON for everything else
+app.use((req, res, next) => {
+  if (req.path === '/api/stripe/webhook') {
+    // Stripe webhook needs raw body
+    return express.raw({ type: 'application/json' })(req, res, next)
+  }
+  // Everything else uses JSON parsing
+  express.json()(req, res, next)
+})
+
+// Debug middleware - log all requests
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/ai/')) {
+    console.log(`\n📥 ${req.method} ${req.path}`)
+    console.log('   Content-Type:', req.get('content-type'))
+  }
+  next()
+})
 
 // Health check endpoint
 app.get('/health', (_req, res) => {

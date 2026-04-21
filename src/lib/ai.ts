@@ -66,17 +66,28 @@ export interface PotentialTradeResult {
 async function post<T>(path: string, body: unknown): Promise<T> {
   const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
   const url = baseUrl ? `${baseUrl}${path}` : path
-  console.log(`[AI API] POST ${path}`, body)
+  console.log(`[AI API] POST ${path}`, JSON.stringify(body, null, 2))
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Request failed' }))
-    throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`)
+
+  let responseData: any
+  try {
+    responseData = await res.json()
+  } catch (e) {
+    console.error(`[AI API] Failed to parse response as JSON:`, e)
+    throw new Error(`HTTP ${res.status}: Failed to parse response`)
   }
-  return res.json() as Promise<T>
+
+  if (!res.ok) {
+    console.error(`[AI API] Error response:`, responseData)
+    throw new Error((responseData as { error?: string }).error ?? `HTTP ${res.status}`)
+  }
+
+  console.log(`[AI API] Success response from ${path}:`, responseData)
+  return responseData as Promise<T>
 }
 
 // ─── API Client ───────────────────────────────────────────────────────────────
@@ -86,8 +97,18 @@ export const aiApi = {
    * Grade a closed trade using Claude
    */
   gradeTrade: (trade: Trade) => {
-    // Send fields at top level (not nested)
-    return post<GradeTradeResult>('/api/ai/grade-trade', {
+    // Validate required fields
+    if (!trade.ticker || !trade.status || trade.entry_price === undefined) {
+      console.error('[AI API] Missing required fields for gradeTrade:', {
+        ticker: trade.ticker,
+        status: trade.status,
+        entry_price: trade.entry_price,
+      })
+      throw new Error('Trade missing required fields: ticker, status, entry_price')
+    }
+
+    // Send as nested trade object (backend may expect { trade: {...} })
+    const tradeObj = {
       ticker: trade.ticker,
       status: trade.status,
       entry_price: trade.entry_price,
@@ -104,7 +125,8 @@ export const aiApi = {
       setup_notes: trade.setup_notes,
       mistakes: trade.mistakes,
       lessons: trade.lessons,
-    })
+    }
+    return post<GradeTradeResult>('/api/ai/grade-trade', { trade: tradeObj })
   },
 
   /**
@@ -144,8 +166,8 @@ export const aiApi = {
   /**
    * Analyze an open/active trade with current market context
    */
-  tradeAnalysis: (trade: Trade) =>
-    post<TradeAnalysisResult>('/api/ai/trade-analysis', {
+  tradeAnalysis: (trade: Trade) => {
+    const tradeObj = {
       ticker: trade.ticker,
       asset_type: trade.asset_type,
       direction: trade.direction,
@@ -155,7 +177,9 @@ export const aiApi = {
       stop_loss: trade.stop_loss,
       take_profit: trade.take_profit,
       setup_notes: trade.setup_notes,
-    }),
+    }
+    return post<TradeAnalysisResult>('/api/ai/trade-analysis', { trade: tradeObj })
+  },
 
   /**
    * Evaluate a potential trade setup before entry
