@@ -66,6 +66,7 @@ export interface PotentialTradeResult {
 async function post<T>(path: string, body: unknown): Promise<T> {
   const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
   const url = baseUrl ? `${baseUrl}${path}` : path
+  console.log(`[AI API] POST ${path}`, body)
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -84,8 +85,29 @@ export const aiApi = {
   /**
    * Grade a closed trade using Claude
    */
-  gradeTrade: (trade: Trade) =>
-    post<GradeTradeResult>('/api/ai/grade-trade', { trade }),
+  gradeTrade: (trade: Trade) => {
+    // Extract only the fields we need to send to the backend
+    const tradeForGrading = {
+      id: trade.id,
+      ticker: trade.ticker,
+      status: trade.status,
+      asset_type: trade.asset_type,
+      direction: trade.direction,
+      entry_price: trade.entry_price,
+      exit_price: trade.exit_price,
+      entry_date: trade.entry_date,
+      exit_date: trade.exit_date,
+      quantity: trade.quantity,
+      r_multiple: trade.r_multiple,
+      net_pnl: trade.net_pnl,
+      execution_quality: trade.execution_quality,
+      strategy_tags: trade.strategy_tags,
+      setup_notes: trade.setup_notes,
+      mistakes: trade.mistakes,
+      lessons: trade.lessons,
+    }
+    return post<GradeTradeResult>('/api/ai/grade-trade', { trade: tradeForGrading })
+  },
 
   /**
    * Evaluate the quality of a proposed trade setup (pre-trade check)

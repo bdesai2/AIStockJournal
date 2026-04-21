@@ -6,6 +6,7 @@ import {
   Upload, X, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { ExecutionsCard } from '@/components/trades/ExecutionsCard'
+import { TradeChart } from '@/components/trades/TradeChart'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { useAiStore } from '@/store/aiStore'
@@ -428,8 +429,11 @@ export function TradeDetailPage() {
             ))}
           </Card>
         )}
+      </div>
 
-        {/* Journal */}
+      {/* Chart - Full Width */}
+      <TradeChart trade={trade} apiKey={import.meta.env.VITE_FINNHUB_API_KEY} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {(trade.setup_notes || trade.entry_notes || trade.exit_notes || trade.mistakes || trade.lessons) && (
           <Card title="Journal Notes" icon={Calendar}>
             {[
