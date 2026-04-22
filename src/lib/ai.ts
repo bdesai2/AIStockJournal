@@ -1,4 +1,5 @@
 import type { Trade } from '@/types'
+import { supabase } from '@/lib/supabase'
 
 // ─── Response Types ───────────────────────────────────────────────────────────
 
@@ -67,9 +68,18 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
   const url = baseUrl ? `${baseUrl}${path}` : path
   console.log(`[AI API] POST ${path}`, JSON.stringify(body, null, 2))
+
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) {
+    throw new Error('Not authenticated. Please sign in again.')
+  }
+
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
     body: JSON.stringify(body),
   })
 
