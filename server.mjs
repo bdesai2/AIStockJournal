@@ -53,15 +53,6 @@ app.use((req, res, next) => {
 })
 
 // ─── M4: Rate limiting ────────────────────────────────────────────────────
-// General API limiter: 2 req/min per IP
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 2,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests, please try again later' },
-})
-
 // AI limiter: 10 req/min per IP (expensive Claude calls)
 const aiLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -69,6 +60,17 @@ const aiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'AI rate limit exceeded, please wait before retrying' },
+})
+
+// General API limiter: 10 req/min per IP for non-AI routes (Stripe, Finnhub, admin)
+// AI routes are excluded here — they have their own stricter limiter above.
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.originalUrl.startsWith('/api/ai/'),
+  message: { error: 'Too many requests, please try again later' },
 })
 
 app.use('/api/ai/', aiLimiter)
