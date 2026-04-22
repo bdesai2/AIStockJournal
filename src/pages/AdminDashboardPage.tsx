@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Search, Loader2, Check, X, Shield, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { useAuthStore } from '@/store/authStore'
 
 interface UserSubscriptionInfo {
   user_id: string
@@ -15,16 +14,42 @@ interface UserSubscriptionInfo {
   has_stripe_sub: boolean
 }
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+
+async function adminFetch(path: string, options: RequestInit = {}) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) throw new Error('Not authenticated')
+  return fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+      ...(options.headers ?? {}),
+    },
+  })
+}
+
 export function AdminDashboardPage() {
-  const { user } = useAuthStore()
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null) // null = checking
   const [searchEmail, setSearchEmail] = useState('')
   const [users, setUsers] = useState<UserSubscriptionInfo[]>([])
   const [loading, setLoading] = useState(false)
   const [updating, setUpdating] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  // Simple admin check - check email domain
-  const isAdmin = user?.email?.endsWith('@admin.stock-journal.com') || user?.email === 'bdesai2@gmail.com'
+  // Verify admin status via backend on mount
+  useEffect(() => {
+    async function checkAdmin() {
+      try {
+        const res = await adminFetch('/api/admin/check')
+        const data = await res.json()
+        setIsAdmin(data.isAdmin === true)
+      } catch {
+        setIsAdmin(false)
+      }
+    }
+    checkAdmin()
+  }, [])
 
   const searchUsers = async (email: string = searchEmail) => {
     if (!email.trim()) {
@@ -34,24 +59,12 @@ export function AdminDashboardPage() {
 
     setLoading(true)
     try {
-      console.log('Searching for users with email:', email)
-      // Call Supabase function to search users
-      const { data, error } = await supabase
-        .rpc('get_user_subscription_info', {
-          search_email: email,
-        })
-
-      console.log('Search response:', { data, error })
-
-      if (error) {
-        console.error('RPC error:', error)
-        throw error
-      }
-
-      setUsers(data || [])
+      const res = await adminFetch(`/api/admin/users?email=${encodeURIComponent(email)}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Search failed')
+      setUsers(data)
       setMessage(null)
     } catch (err) {
-      console.error('Search error:', err)
       setMessage({
         type: 'error',
         text: err instanceof Error ? err.message : 'Failed to search users',
@@ -64,28 +77,15 @@ export function AdminDashboardPage() {
   const grantProAccess = async (userId: string) => {
     setUpdating(userId)
     try {
-      console.log('Granting pro access to user:', userId)
-      const { data, error } = await supabase.rpc('grant_pro_access', {
-        target_user_id: userId,
-        notes: `Granted by ${user?.email} on ${new Date().toISOString()}`,
+      const res = await adminFetch('/api/admin/grant-pro', {
+        method: 'POST',
+        body: JSON.stringify({ userId }),
       })
-
-      console.log('Grant response:', { data, error })
-
-      if (error) {
-        console.error('Grant error:', error)
-        throw error
-      }
-
-      setMessage({
-        type: 'success',
-        text: `Pro access granted to ${data.user_id}`,
-      })
-
-      // Refresh user list with current search email
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Grant failed')
+      setMessage({ type: 'success', text: `Pro access granted to ${data.user_id}` })
       await searchUsers(searchEmail)
     } catch (err) {
-      console.error('Grant pro access error:', err)
       setMessage({
         type: 'error',
         text: err instanceof Error ? err.message : 'Failed to grant pro access',
@@ -102,28 +102,15 @@ export function AdminDashboardPage() {
 
     setUpdating(userId)
     try {
-      console.log('Revoking pro access from user:', userId)
-      const { data, error } = await supabase.rpc('revoke_pro_access', {
-        target_user_id: userId,
-        notes: `Revoked by ${user?.email} on ${new Date().toISOString()}`,
+      const res = await adminFetch('/api/admin/revoke-pro', {
+        method: 'POST',
+        body: JSON.stringify({ userId }),
       })
-
-      console.log('Revoke response:', { data, error })
-
-      if (error) {
-        console.error('Revoke error:', error)
-        throw error
-      }
-
-      setMessage({
-        type: 'success',
-        text: `Pro access revoked for ${data.user_id}`,
-      })
-
-      // Refresh user list with current search email
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Revoke failed')
+      setMessage({ type: 'success', text: `Pro access revoked for ${data.user_id}` })
       await searchUsers(searchEmail)
     } catch (err) {
-      console.error('Revoke pro access error:', err)
       setMessage({
         type: 'error',
         text: err instanceof Error ? err.message : 'Failed to revoke pro access',
@@ -146,6 +133,14 @@ export function AdminDashboardPage() {
 
     return () => clearTimeout(timer)
   }, [searchEmail])
+
+  if (isAdmin === null) {
+    return (
+      <div className="p-6 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
 
   if (!isAdmin) {
     return (

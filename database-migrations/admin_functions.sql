@@ -13,6 +13,11 @@ DECLARE
   free_tier_id UUID;
   current_tier VARCHAR;
 BEGIN
+  -- Admin guard (C3): reject non-admin callers at the database level
+  IF NOT is_user_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'Admin access required';
+  END IF;
+
   -- Get tier IDs
   SELECT id INTO pro_tier_id FROM subscription_tiers WHERE name = 'pro' LIMIT 1;
   SELECT id INTO free_tier_id FROM subscription_tiers WHERE name = 'free' LIMIT 1;
@@ -79,6 +84,11 @@ DECLARE
   free_tier_id UUID;
   current_tier VARCHAR;
 BEGIN
+  -- Admin guard (C3): reject non-admin callers at the database level
+  IF NOT is_user_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'Admin access required';
+  END IF;
+
   -- Get Free tier ID
   SELECT id INTO free_tier_id FROM subscription_tiers WHERE name = 'free' LIMIT 1;
 
@@ -152,6 +162,11 @@ RETURNS TABLE (
   has_stripe_sub BOOLEAN
 ) AS $$
 BEGIN
+  -- Admin guard (C3): reject non-admin callers at the database level
+  IF NOT is_user_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'Admin access required';
+  END IF;
+
   RETURN QUERY
   SELECT
     u.id,
@@ -174,7 +189,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Grant execute permissions (adjust role names as needed)
+-- Grant execute permissions to authenticated users.
+-- The functions themselves enforce admin-only access via is_user_admin().
 GRANT EXECUTE ON FUNCTION grant_pro_access TO authenticated;
 GRANT EXECUTE ON FUNCTION revoke_pro_access TO authenticated;
 GRANT EXECUTE ON FUNCTION get_user_subscription_info TO authenticated;
