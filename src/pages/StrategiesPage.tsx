@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import DOMPurify from 'dompurify'
 import { Lightbulb, Image as ImageIcon, Loader2, PlusCircle, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
@@ -13,11 +14,7 @@ import { UpgradeModal } from '@/components/premium/UpgradeModal'
 interface StrategyFormState {
   name: string
   description: string
-  setup_rules: string
-  entry_conditions: string
-  exit_conditions: string
-  strengths: string
-  weaknesses: string
+  notes: string
   likelihood_of_success: number
   confidence_level: 1 | 2 | 3 | 4 | 5
   tags: StrategyTag[]
@@ -28,14 +25,13 @@ const stripHtml = (html: string) => {
   return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim()
 }
 
+const sanitizeHtml = (html: string) =>
+  DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
+
 const EMPTY_FORM: StrategyFormState = {
   name: '',
   description: '',
-  setup_rules: '',
-  entry_conditions: '',
-  exit_conditions: '',
-  strengths: '',
-  weaknesses: '',
+  notes: '',
   likelihood_of_success: 0,
   confidence_level: 3,
   tags: [],
@@ -87,14 +83,20 @@ export function StrategiesPage() {
 
   useEffect(() => {
     if (selectedStrategy) {
+      // Merge legacy separate fields into unified notes field on load
+      const legacyParts: string[] = [
+        selectedStrategy.setup_rules,
+        selectedStrategy.entry_conditions,
+        selectedStrategy.exit_conditions,
+        selectedStrategy.strengths,
+        selectedStrategy.weaknesses,
+      ].filter(Boolean) as string[]
+      const notes = legacyParts.join('')
+
       setForm({
         name: selectedStrategy.name,
         description: selectedStrategy.description ?? '',
-        setup_rules: selectedStrategy.setup_rules ?? '',
-        entry_conditions: selectedStrategy.entry_conditions ?? '',
-        exit_conditions: selectedStrategy.exit_conditions ?? '',
-        strengths: selectedStrategy.strengths ?? '',
-        weaknesses: selectedStrategy.weaknesses ?? '',
+        notes,
         likelihood_of_success: selectedStrategy.likelihood_of_success ?? 0,
         confidence_level: (selectedStrategy.confidence_level as StrategyFormState['confidence_level']) ?? 3,
         tags: selectedStrategy.tags ?? [],
@@ -145,11 +147,11 @@ export function StrategiesPage() {
         const updated = await updateStrategy(editingId, {
           name: form.name.trim(),
           description: form.description || undefined,
-          setup_rules: form.setup_rules || undefined,
-          entry_conditions: form.entry_conditions || undefined,
-          exit_conditions: form.exit_conditions || undefined,
-          strengths: form.strengths || undefined,
-          weaknesses: form.weaknesses || undefined,
+          setup_rules: form.notes || undefined,
+          entry_conditions: undefined,
+          exit_conditions: undefined,
+          strengths: undefined,
+          weaknesses: undefined,
           likelihood_of_success: Number.isFinite(form.likelihood_of_success)
             ? form.likelihood_of_success
             : undefined,
@@ -165,11 +167,11 @@ export function StrategiesPage() {
           user_id: user.id,
           name: form.name.trim(),
           description: form.description || undefined,
-          setup_rules: form.setup_rules || undefined,
-          entry_conditions: form.entry_conditions || undefined,
-          exit_conditions: form.exit_conditions || undefined,
-          strengths: form.strengths || undefined,
-          weaknesses: form.weaknesses || undefined,
+          setup_rules: form.notes || undefined,
+          entry_conditions: undefined,
+          exit_conditions: undefined,
+          strengths: undefined,
+          weaknesses: undefined,
           likelihood_of_success: Number.isFinite(form.likelihood_of_success) ? form.likelihood_of_success : undefined,
           confidence_level: form.confidence_level,
           tags: form.tags,
@@ -322,58 +324,19 @@ export function StrategiesPage() {
 
                 {selectedStrategy.description && (
                   <p className="text-[12px] text-muted-foreground leading-relaxed">
-                    {stripHtml(selectedStrategy.description)}
+                    {selectedStrategy.description}
                   </p>
                 )}
               </div>
 
-              {/* Rules grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {selectedStrategy.setup_rules && (
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-amber-400/80 mb-2">Setup</p>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      {stripHtml(selectedStrategy.setup_rules)}
-                    </p>
-                  </div>
-                )}
-                {selectedStrategy.entry_conditions && (
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-emerald-400/80 mb-2">Entry</p>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      {stripHtml(selectedStrategy.entry_conditions)}
-                    </p>
-                  </div>
-                )}
-                {selectedStrategy.exit_conditions && (
-                  <div className="rounded-lg border border-border bg-card p-3">
-                    <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-rose-400/80 mb-2">Exit</p>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      {stripHtml(selectedStrategy.exit_conditions)}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Strengths & Weaknesses */}
-              {(selectedStrategy.strengths || selectedStrategy.weaknesses) && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {selectedStrategy.strengths && (
-                    <div className="rounded-lg border border-border/60 bg-emerald-950/20 p-3">
-                      <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-emerald-400 mb-2">✓ Strengths</p>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed">
-                        {stripHtml(selectedStrategy.strengths)}
-                      </p>
-                    </div>
-                  )}
-                  {selectedStrategy.weaknesses && (
-                    <div className="rounded-lg border border-border/60 bg-amber-950/20 p-3">
-                      <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-amber-400 mb-2">⚠ Risks</p>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed">
-                        {stripHtml(selectedStrategy.weaknesses)}
-                      </p>
-                    </div>
-                  )}
+              {/* Notes */}
+              {selectedStrategy.setup_rules && (
+                <div className="rounded-lg border border-border bg-card p-4">
+                  <div
+                    className="strategy-notes"
+                    // eslint-disable-next-line react/no-danger
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedStrategy.setup_rules) }}
+                  />
                 </div>
               )}
 
@@ -427,62 +390,26 @@ export function StrategiesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1 flex items-center justify-between">
-                  <span>Description</span>
-                  <span className="text-[10px] text-muted-foreground">Supports paragraphs and bullet lists</span>
-                </label>
-                  <RichTextEditor
-                    value={form.description}
-                    onChange={(val) => handleChange('description', val)}
-                    placeholder="High-level overview of when and why you trade this setup."
-                  />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Setup rules</label>
-                  <RichTextEditor
-                    value={form.setup_rules}
-                    onChange={(val) => handleChange('setup_rules', val)}
-                    placeholder="Market structure, time of day, volatility conditions, etc."
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Entry conditions</label>
-                  <RichTextEditor
-                    value={form.entry_conditions}
-                    onChange={(val) => handleChange('entry_conditions', val)}
-                    placeholder="Exact triggers, confirmations, and invalidation levels."
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Exit conditions</label>
-                <RichTextEditor
-                  value={form.exit_conditions}
-                  onChange={(val) => handleChange('exit_conditions', val)}
-                  placeholder="Targets, stop rules, scaling logic, and trade management."
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Description</label>
+                <textarea
+                  value={form.description}
+                  onChange={(e) => handleChange('description', e.target.value)}
+                  placeholder="High-level overview of when and why you trade this setup."
+                  rows={3}
+                  className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none"
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Strengths</label>
-                  <RichTextEditor
-                    value={form.strengths}
-                    onChange={(val) => handleChange('strengths', val)}
-                    placeholder="Where this setup shines: market regimes, instrument types, etc."
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Weaknesses / risks</label>
-                  <RichTextEditor
-                    value={form.weaknesses}
-                    onChange={(val) => handleChange('weaknesses', val)}
-                    placeholder="Failure modes, news risks, chop conditions, and common mistakes."
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Notes</label>
+                <p className="text-[11px] text-muted-foreground mb-1.5">
+                  Document setup rules, entry &amp; exit conditions, strengths, and weaknesses. Use the HTML view for full control.
+                </p>
+                <RichTextEditor
+                  value={form.notes}
+                  onChange={(val) => handleChange('notes', val)}
+                  placeholder="Describe your setup rules, entry conditions, exit logic, strengths, and weaknesses…"
+                />
               </div>
 
               <div>

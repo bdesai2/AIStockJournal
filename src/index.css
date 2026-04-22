@@ -122,6 +122,23 @@
   }
 }
 
+/* Strategy notes rendered HTML */
+.strategy-notes p { margin-bottom: 0.6em; font-size: 0.8125rem; line-height: 1.65; }
+.strategy-notes p:last-child { margin-bottom: 0; }
+.strategy-notes h1 { font-size: 1rem; font-weight: 600; margin: 1em 0 0.4em; }
+.strategy-notes h2 { font-size: 0.9375rem; font-weight: 600; margin: 0.9em 0 0.35em; }
+.strategy-notes h3 { font-size: 0.875rem; font-weight: 600; margin: 0.8em 0 0.3em; color: hsl(var(--primary)); }
+.strategy-notes ul { list-style: disc; padding-left: 1.25rem; margin: 0.5em 0 0.75em; }
+.strategy-notes ol { list-style: decimal; padding-left: 1.25rem; margin: 0.5em 0 0.75em; }
+.strategy-notes li { margin-bottom: 0.3em; font-size: 0.8125rem; }
+.strategy-notes strong { font-weight: 600; color: hsl(var(--foreground)); }
+.strategy-notes em { font-style: italic; }
+.strategy-notes code { background: hsl(var(--muted)); border-radius: 3px; padding: 0.1em 0.35em; font-family: monospace; font-size: 0.78rem; }
+.strategy-notes pre { background: hsl(var(--muted)); border-radius: 4px; padding: 0.6em 0.75em; margin: 0.5em 0; overflow-x: auto; }
+.strategy-notes pre code { background: transparent; padding: 0; }
+.strategy-notes blockquote { border-left: 3px solid hsl(var(--primary)); padding-left: 0.75rem; margin: 0.5em 0; color: hsl(var(--muted-foreground)); }
+.strategy-notes a { color: hsl(var(--primary)); text-decoration: underline; text-underline-offset: 2px; }
+
 /* Recharts overrides */
 .recharts-cartesian-grid-horizontal line,
 .recharts-cartesian-grid-vertical line {
