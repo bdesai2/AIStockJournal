@@ -11,7 +11,11 @@ import {
   ChevronRight,
   Bell,
   Zap,
+  WifiOff,
+  MonitorDown,
 } from 'lucide-react'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
+import { useInstallPrompt } from '@/hooks/useInstallPrompt'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { auth } from '@/lib/supabase'
@@ -32,6 +36,14 @@ const NAV_ITEMS = [
   { to: '/strategies', icon: Zap, label: 'Strategies' },
 ]
 
+const MOBILE_NAV_ITEMS = [
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/trades', icon: LineChart, label: 'Trades' },
+  { to: '/journal', icon: BookOpen, label: 'Journal' },
+  { to: '/strategies', icon: Zap, label: 'Strategies' },
+  { to: '/settings', icon: Settings, label: 'Settings' },
+]
+
 export function AppLayout() {
   const { user, profile, selectedAccountId, subscription, fetchSubscription } = useAuthStore()
   const { trades, fetchTrades } = useTradeStore()
@@ -39,6 +51,8 @@ export function AppLayout() {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [accountsModalOpen, setAccountsModalOpen] = useState(false)
   const notifications = useNotificationStore((s) => s.notifications)
+  const isOnline = useOnlineStatus()
+  const { canInstall, install } = useInstallPrompt()
   const clearAllNotifications = useNotificationStore((s) => s.clearAll)
 
   const handleNotificationClick = (n: Notification) => {
@@ -86,8 +100,8 @@ export function AppLayout() {
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-60 flex-shrink-0 flex flex-col border-r border-border bg-card">
+      {/* Sidebar — hidden on mobile, shown on md+ */}
+      <aside className="hidden md:flex w-60 flex-shrink-0 flex-col border-r border-border bg-card">
         {/* Logo */}
         <div className="h-16 flex items-center gap-2.5 px-5 border-b border-border">
           <div className="w-7 h-7 rounded bg-primary flex items-center justify-center flex-shrink-0">
@@ -208,8 +222,15 @@ export function AppLayout() {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {/* Top bar */}
-        <header className="h-16 flex items-center justify-between px-6 border-b border-border bg-card/50 flex-shrink-0">
-          <div className="flex items-center gap-4">
+        <header className="h-16 flex items-center justify-between px-4 md:px-6 border-b border-border bg-card/50 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            {/* Mobile: show logo since sidebar is hidden */}
+            <div className="flex items-center gap-2 md:hidden">
+              <div className="w-7 h-7 rounded bg-primary flex items-center justify-center flex-shrink-0">
+                <span className="font-display text-background text-base leading-none">T</span>
+              </div>
+              <span className="font-display text-sm tracking-wider leading-none hidden sm:inline">TRADE REFLECTION</span>
+            </div>
             {/* Account Selector */}
             <AccountSelector onManageClick={() => setAccountsModalOpen(true)} />
           </div>
@@ -217,6 +238,18 @@ export function AppLayout() {
             {/* Breadcrumb injected by pages via context if needed */}
           </div>
           <div className="flex items-center gap-2">
+            {/* Install App button — only shown when browser supports PWA install */}
+            {canInstall && (
+              <button
+                type="button"
+                onClick={install}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded border border-primary/40 text-xs text-primary hover:bg-primary/10 transition-colors"
+                title="Install Trade Reflection as an app"
+              >
+                <MonitorDown className="w-3.5 h-3.5" />
+                <span>Install App</span>
+              </button>
+            )}
             <div className="relative">
               <button
                 type="button"
@@ -276,8 +309,16 @@ export function AppLayout() {
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto flex flex-col">
+        {/* Offline indicator */}
+        {!isOnline && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-amber-950/70 border-b border-amber-700/40 flex-shrink-0">
+            <WifiOff className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+            <span className="text-xs text-amber-300">You're offline — showing cached data</span>
+          </div>
+        )}
+
+        {/* Page content — pb-16 on mobile to clear the bottom tab bar */}
+        <main className="flex-1 overflow-y-auto flex flex-col pb-16 md:pb-0">
           <Outlet />
           <Footer />
         </main>
@@ -285,6 +326,28 @@ export function AppLayout() {
         {/* Global in-app notifications */}
         <NotificationToaster />
       </div>
+
+      {/* Mobile bottom tab navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex md:hidden bg-card border-t border-border safe-area-inset-bottom">
+        {MOBILE_NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] transition-colors ${
+                isActive ? 'text-primary' : 'text-muted-foreground'
+              }`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <Icon className={`w-5 h-5 ${isActive ? 'text-primary' : ''}`} />
+                <span className="font-medium">{label}</span>
+              </>
+            )}
+          </NavLink>
+        ))}
+      </nav>
 
       {/* Manage Accounts Modal */}
       <ManageAccountsModal isOpen={accountsModalOpen} onClose={() => setAccountsModalOpen(false)} />

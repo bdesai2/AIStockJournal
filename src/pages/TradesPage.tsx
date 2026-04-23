@@ -1,10 +1,10 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PlusCircle, Search, Filter, ArrowUpDown } from 'lucide-react'
+import { PlusCircle, Search, Filter, ArrowUpDown, Download } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { TradeRow } from '@/components/trades/TradeRow'
-import type { AssetType, TradeStatus } from '@/types'
+import type { AssetType, TradeStatus, Trade } from '@/types'
 import { calcPnlPercent } from '@/lib/tradeUtils'
 
 type SortKey = 'entry_date' | 'net_pnl' | 'pnl_percent' | 'r_multiple' | 'ticker'
@@ -12,6 +12,41 @@ type SortDir = 'asc' | 'desc'
 type GradeFilter = 'all' | 'A' | 'B' | 'C' | 'D' | 'F' | '-'
 
 const FILTER_STORAGE_KEY = 'trades_filters_v1'
+
+function exportToCsv(trades: Trade[]) {
+  const headers = [
+    'Date', 'Ticker', 'Direction', 'Asset', 'Status',
+    'Entry Price', 'Exit Price', 'Qty', 'Gross P&L', 'Net P&L',
+    'P&L %', 'R Multiple', 'Grade', 'Strategy Tags',
+  ]
+  const escape = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const rows = trades.map((t) => [
+    t.entry_date,
+    t.ticker,
+    t.direction,
+    t.asset_type,
+    t.status,
+    t.entry_price,
+    t.exit_price ?? '',
+    t.quantity,
+    t.gross_pnl ?? '',
+    t.net_pnl ?? '',
+    t.exit_price != null ? (calcPnlPercent(t) ?? 0).toFixed(2) : '',
+    t.r_multiple ?? '',
+    t.ai_grade ?? '',
+    (t.strategy_tags ?? []).join('; '),
+  ])
+  const csv = [headers, ...rows].map((row) => row.map(escape).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `trades-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
 
 function getInitialFilters(): {
   search: string
@@ -168,13 +203,25 @@ export function TradesPage() {
             {filtered.length} of {trades.length} trades
           </p>
         </div>
-        <button
-          onClick={() => navigate('/trades/new')}
-          className="flex items-center gap-2 bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
-          <PlusCircle className="w-4 h-4" />
-          Log Trade
-        </button>
+        <div className="flex items-center gap-2">
+          {filtered.length > 0 && (
+            <button
+              onClick={() => exportToCsv(filtered)}
+              className="flex items-center gap-2 border border-border rounded-md px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title={`Export ${filtered.length} trade${filtered.length !== 1 ? 's' : ''} to CSV`}
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </button>
+          )}
+          <button
+            onClick={() => navigate('/trades/new')}
+            className="flex items-center gap-2 bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Log Trade
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

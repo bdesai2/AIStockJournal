@@ -376,14 +376,14 @@
 - [x] Enhanced pattern recognition
 - Trade similarity matching
 
-### Milestone 4
-- Advanced heatmaps and correlation analysis
-- Win rate by sector/timeframe
-- Monthly/quarterly performance summaries
+### Milestone 4 ✅
+- [x] Advanced heatmaps and correlation analysis
+- [x] Win rate by sector/timeframe
+- [x] Monthly/quarterly performance summaries
 
 ---
 
-## Milestone 5: PWA & Mobile Polish ⬜ (In Planning)
+## Milestone 5: PWA & Mobile Polish ✅ (Partial)
 
 ### Progressive Web App (PWA) Core Features
 - **Web App Manifest**
@@ -405,10 +405,10 @@
   - [x] Cache versioning strategy (v1, v2, etc.)
 
 - **App Installation**
-  - [ ] Implement install prompt triggering
-  - [ ] Add "Install App" button on homepage
+  - [x] Implement install prompt triggering (useInstallPrompt hook)
+  - [x] Add "Install App" button in header (shown only when browser supports)
   - [ ] Display install instructions for different browsers
-  - [ ] Handle beforeinstallprompt event
+  - [x] Handle beforeinstallprompt event
   - [ ] Track installation analytics
   - [ ] Add post-install welcome screen (optional)
 
@@ -439,20 +439,11 @@
   - [ ] Queue notifications for when network restores
 
 ### Mobile UI/UX Polish
-- **Touch Interactions**
-  - [ ] Implement touch-friendly button sizing (min 48x48px)
-  - [ ] Add swipe gestures for navigation
-  - [ ] Implement pull-to-refresh on main pages
-  - [ ] Long-press context menus for trade actions
-  - [ ] Touch feedback (ripple effects, haptics)
-  - [ ] Avoid hover states on mobile
-
 - **Mobile Navigation**
-  - [ ] Bottom tab navigation for mobile (Dashboard, Trades, Journal, Settings)
-  - [ ] Collapse sidebar on mobile devices
-  - [ ] Mobile-friendly header with hamburger menu (if needed)
+  - [x] Bottom tab navigation for mobile (Dashboard, Trades, Journal, Strategies, Settings)
+  - [x] Collapse/hide sidebar on mobile devices
+  - [x] Mobile-friendly header with logo on mobile
   - [ ] Sticky action buttons for forms
-  - [ ] Back gesture support
   - [ ] Breadcrumb navigation for deep pages
 
 - **Responsive Layout Improvements**
@@ -482,11 +473,11 @@
 
 ### Export & Reporting Features
 - **Trade Export**
-  - [ ] Export selected trades to CSV
-  - [ ] Export all trades to CSV with filtering options
-  - [ ] Export trades to JSON (includes all metadata)
+  - [x] Export filtered trades to CSV (Download button on Trades page)
+  - [x] Export with current filter state
+  - [x] Include calculated metrics (P&L, R-Multiple, Grade)
+  - [ ] Export to JSON
   - [ ] Export with date range picker
-  - [ ] Include calculated metrics (P&L, R-Multiple, etc.)
   - [ ] Batch export multiple trade selections
 
 - **Performance Reports**
