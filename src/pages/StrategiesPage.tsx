@@ -26,7 +26,13 @@ const stripHtml = (html: string) => {
 }
 
 const sanitizeHtml = (html: string) =>
-  DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
+  DOMPurify.sanitize(html, {
+    // Allow <style> blocks so users can define CSS in the HTML editor.
+    // JavaScript is still blocked: <script> tags and event handler attributes
+    // (onclick, onerror, etc.) are stripped by DOMPurify's default config.
+    ADD_TAGS: ['style'],
+    FORCE_BODY: true,
+  })
 
 const EMPTY_FORM: StrategyFormState = {
   name: '',

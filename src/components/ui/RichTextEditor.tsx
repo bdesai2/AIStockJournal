@@ -16,19 +16,50 @@ export function RichTextEditor({ value, onChange, placeholder, className }: Rich
   const [htmlValue, setHtmlValue] = useState(value)
   const quillRef = useRef<ReactQuill>(null)
 
+  // Tracks the last HTML the user explicitly typed in the textarea.
+  // Quill normalizes HTML on render (wraps text in <p>, etc.) and fires onChange
+  // with the transformed output. We deliberately do NOT update rawHtmlRef from
+  // Quill's output — only from the user's own textarea edits or external loads.
+  const rawHtmlRef = useRef(value)
+
+  // Flag set before we call onChange so the value-sync effect can tell the
+  // difference between "Quill normalized" vs "strategy was swapped externally".
+  const isInternalChange = useRef(false)
+
   useEffect(() => {
+    // If the change came from inside this component (Quill or textarea), skip —
+    // we already handled state updates in the handlers.
+    if (isInternalChange.current) {
+      isInternalChange.current = false
+      return
+    }
+    // External load (e.g., a different strategy was selected): reset everything.
+    rawHtmlRef.current = value
     setHtmlValue(value)
   }, [value])
 
   const handleQuillChange = (content: string) => {
+    isInternalChange.current = true
     onChange(content)
-    setHtmlValue(content)
+    // Intentionally do NOT update rawHtmlRef or htmlValue here.
+    // Quill's normalized output should not overwrite the user's raw HTML.
   }
 
   const handleHtmlChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newHtml = e.target.value
+    rawHtmlRef.current = newHtml
+    isInternalChange.current = true
     setHtmlValue(newHtml)
     onChange(newHtml)
+  }
+
+  const handleToggleMode = () => {
+    if (!showHtml) {
+      // Switching TO html view: restore the user's last explicitly typed HTML,
+      // not Quill's normalized version.
+      setHtmlValue(rawHtmlRef.current)
+    }
+    setShowHtml((prev) => !prev)
   }
 
   const modules = {
@@ -69,7 +100,7 @@ export function RichTextEditor({ value, onChange, placeholder, className }: Rich
         </span>
         <button
           type="button"
-          onClick={() => setShowHtml(!showHtml)}
+          onClick={handleToggleMode}
           className={cn(
             'flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors',
             showHtml

@@ -43,11 +43,19 @@ app.use(cors({
   maxAge: 86400,
 }))
 
+// Respond to preflight OPTIONS before rate limiters run, so browsers don't get
+// a rate-limit response (429) or fall-through 404 on the OPTIONS request.
+app.options('*', cors())
+
 // ─── H6: Request size limits ──────────────────────────────────────────────
-// Custom middleware: raw body for Stripe webhook, 10 kb JSON for everything else
+// Custom middleware: raw body for Stripe webhook, 100 kb for AI (full trade
+// objects with rich-text HTML), 10 kb for everything else.
 app.use((req, res, next) => {
   if (req.path === '/api/stripe/webhook') {
     return express.raw({ type: 'application/json', limit: '1mb' })(req, res, next)
+  }
+  if (req.path.startsWith('/api/ai/')) {
+    return express.json({ limit: '100kb' })(req, res, next)
   }
   express.json({ limit: '10kb' })(req, res, next)
 })
@@ -103,6 +111,19 @@ const AI_MODEL = 'claude-sonnet-4-6' // Supports prompt caching
 registerAiRoutes(app, anthropic, AI_MODEL)
 registerFinnhubProxyRoutes(app)
 registerStripeRoutes(app)
+
+// ─── Global error handler ─────────────────────────────────────────────────
+// Must be 4-argument so Express recognises it as an error handler.
+// Returns JSON for every error so clients can always parse the response body.
+app.use((err, _req, res, _next) => {
+  const status = err.status ?? err.statusCode ?? 500
+  const message =
+    process.env.NODE_ENV === 'production'
+      ? status < 500 ? err.message : 'Internal server error'
+      : err.message ?? 'Internal server error'
+  console.error(`[server] ${status} ${message}`, err.stack ?? '')
+  res.status(status).json({ error: message })
+})
 
 // ─── Start Server ──────────────────────────────────────────────────────────
 
