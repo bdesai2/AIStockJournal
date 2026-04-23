@@ -340,7 +340,7 @@ export function TradeDetailPage() {
                     </span>
                     {unrealizedPercent != null && (
                       <span className={cn(pnlColor(unrealizedPnl), 'text-xs')}>
-                        ({unrealizedPercent >= 0 ? '+' : ''}{fmt.percent(unrealizedPercent)})
+                        ({fmt.percent(unrealizedPercent)})
                       </span>
                     )}
                   </div>

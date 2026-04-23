@@ -512,7 +512,8 @@ export function StrategiesPage() {
             </div>
           )}
 
-          {/* Diagram + screenshots */}
+          {/* Diagram + screenshots — only when a strategy is selected */}
+          {selectedStrategy && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="rounded-lg border border-border bg-card p-4 space-y-3">
               <div className="flex items-center gap-2 mb-1">
@@ -632,6 +633,7 @@ export function StrategiesPage() {
               )}
             </div>
           </div>
+          )}{/* end selectedStrategy gate */}
         </div>
       </div>
 

@@ -1159,10 +1159,10 @@ export function DashboardPage() {
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">
                 P&L Activity — Past 52 Weeks
               </p>
-              <div className="overflow-x-auto">
-                <div className="flex gap-[3px] min-w-max pb-1">
+              <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+                <div className="flex gap-[2px] sm:gap-[3px] min-w-max pb-1">
                   {heatmapData.weeks.map((week, wi) => (
-                    <div key={wi} className="flex flex-col gap-[3px]">
+                    <div key={wi} className="flex flex-col gap-[2px] sm:gap-[3px]">
                       {week.map((day) => (
                         <div
                           key={day.date}
@@ -1171,7 +1171,7 @@ export function DashboardPage() {
                               ? `${day.date}: ${day.pnl >= 0 ? '+' : ''}${fmt.currency(day.pnl)}`
                               : day.date
                           }
-                          className="w-3 h-3 rounded-sm cursor-default"
+                          className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-sm cursor-default"
                           style={heatmapCellStyle(day.pnl, heatmapData.maxPnl)}
                         />
                       ))}
@@ -1184,7 +1184,7 @@ export function DashboardPage() {
                 {[0.15, 0.38, 0.62, 1.0].map((a, i) => (
                   <div
                     key={i}
-                    className="w-3 h-3 rounded-sm"
+                    className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-sm"
                     style={{ backgroundColor: `rgba(0, 212, 161, ${a})` }}
                   />
                 ))}
@@ -1192,7 +1192,7 @@ export function DashboardPage() {
                 {[0.15, 0.38, 0.62, 1.0].map((a, i) => (
                   <div
                     key={i}
-                    className="w-3 h-3 rounded-sm"
+                    className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-sm"
                     style={{ backgroundColor: `rgba(255, 77, 109, ${a})` }}
                   />
                 ))}

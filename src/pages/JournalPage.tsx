@@ -295,7 +295,7 @@ export function JournalPage() {
                   <div className="mt-1.5 space-y-0.5">
                     <p
                       className={[
-                        'text-[11px] font-mono font-semibold leading-none',
+                        'text-[10px] font-mono font-semibold leading-none',
                         hasTrades
                           ? pnl >= 0
                             ? 'text-[#00d4a1]'
@@ -304,9 +304,11 @@ export function JournalPage() {
                       ].join(' ')}
                     >
                       {hasTrades && pnl > 0 ? '+' : ''}
-                      {fmt.currency(pnl, 0)}
+                      {Math.abs(pnl) >= 1000
+                        ? `${pnl < 0 ? '-' : ''}$${(Math.abs(pnl) / 1000).toFixed(1)}k`
+                        : fmt.currency(pnl, 0)}
                     </p>
-                    <p className="text-[10px] text-muted-foreground leading-none">
+                    <p className="text-[9px] text-muted-foreground leading-none">
                       {tradeCount}t
                     </p>
                   </div>

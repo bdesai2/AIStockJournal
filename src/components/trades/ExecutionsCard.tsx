@@ -212,14 +212,14 @@ export function ExecutionsCard({ trade }: Props) {
     <div className="rounded-lg border border-border bg-card overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-1">
           <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Executions
           </span>
           {executions.length > 0 && (
             <span
               className={cn(
-                'text-[10px] font-mono px-1.5 py-0.5 rounded',
+                'text-[10px] font-mono px-1.5 py-0.5 rounded w-fit',
                 summary.status === 'closed'
                   ? 'bg-accent text-muted-foreground'
                   : summary.status === 'partial'
@@ -236,17 +236,17 @@ export function ExecutionsCard({ trade }: Props) {
             <>
               <button
                 onClick={() => setAdding(true)}
-                className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 border border-primary/40 hover:border-primary/70 rounded-md px-2.5 py-1 transition-colors"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
-                Add Execution
+                Execution
               </button>
               <button
                 onClick={() => setAddingDividend(true)}
-                className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 border border-primary/40 hover:border-primary/70 rounded-md px-2.5 py-1 transition-colors"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
-                Add Dividend
+                Dividend
               </button>
             </>
           )}
@@ -425,20 +425,7 @@ export function ExecutionsCard({ trade }: Props) {
         )}
 
         {executions.length > 0 && (
-          <>
-            {/* Column headers */}
-            {!editingId && (
-              <div className="grid grid-cols-[80px_1fr_80px_80px_60px_80px_72px] gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground px-1">
-                <span>Action</span>
-                <span>Date / Time</span>
-                <span className="text-right">Qty</span>
-                <span className="text-right">Price</span>
-                <span className="text-right">Fee</span>
-                <span className="text-right">Dividend</span>
-                <span className="text-right">Actions</span>
-              </div>
-            )}
-
+          <div className="space-y-0.5">
             {executions.map((exec) => {
               const isDividendOnly = exec.quantity === 0 && exec.price === 0 && (exec.dividend ?? 0) > 0
               const isEditing = editingId === exec.id
@@ -447,10 +434,10 @@ export function ExecutionsCard({ trade }: Props) {
                 return (
                   <div
                     key={exec.id}
-                    className="grid grid-cols-[80px_1fr_80px_80px_60px_80px_120px] gap-2 items-center px-1 py-2 rounded bg-accent/30"
+                    className="rounded-md bg-accent/30 p-3 space-y-2"
                   >
                     {/* Action toggle */}
-                    <div className="flex gap-1">
+                    <div className="flex gap-2">
                       {(['buy', 'sell'] as const).map((a) => (
                         <button
                           key={a}
@@ -469,50 +456,67 @@ export function ExecutionsCard({ trade }: Props) {
                         </button>
                       ))}
                     </div>
-                    <input
-                      type="datetime-local"
-                      value={editForm.datetime}
-                      onChange={(e) => setEditForm((f) => ({ ...f, datetime: e.target.value }))}
-                      className={cn(inputClass, 'text-[11px] px-1.5 py-1')}
-                    />
-                    <input
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={editForm.quantity}
-                      onChange={(e) => setEditForm((f) => ({ ...f, quantity: e.target.value }))}
-                      className={cn(inputClass, 'text-[11px] px-1.5 py-1 text-right')}
-                    />
-                    <input
-                      type="number"
-                      step="0.0001"
-                      min="0"
-                      value={editForm.price}
-                      onChange={(e) => setEditForm((f) => ({ ...f, price: e.target.value }))}
-                      className={cn(inputClass, 'text-[11px] px-1.5 py-1 text-right')}
-                    />
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={editForm.fee}
-                      onChange={(e) => setEditForm((f) => ({ ...f, fee: e.target.value }))}
-                      className={cn(inputClass, 'text-[11px] px-1.5 py-1 text-right')}
-                    />
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={editForm.dividend}
-                      onChange={(e) => setEditForm((f) => ({ ...f, dividend: e.target.value }))}
-                      className={cn(inputClass, 'text-[11px] px-1.5 py-1 text-right')}
-                    />
-                    <div className="flex gap-1 justify-end">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="col-span-2">
+                        <label className="text-[10px] text-muted-foreground block mb-1">Date / Time</label>
+                        <input
+                          type="datetime-local"
+                          value={editForm.datetime}
+                          onChange={(e) => setEditForm((f) => ({ ...f, datetime: e.target.value }))}
+                          className={cn(inputClass, 'text-[11px] px-1.5 py-1')}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-1">Quantity</label>
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          value={editForm.quantity}
+                          onChange={(e) => setEditForm((f) => ({ ...f, quantity: e.target.value }))}
+                          className={cn(inputClass, 'text-[11px] px-1.5 py-1')}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-1">Price</label>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          min="0"
+                          value={editForm.price}
+                          onChange={(e) => setEditForm((f) => ({ ...f, price: e.target.value }))}
+                          className={cn(inputClass, 'text-[11px] px-1.5 py-1')}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-1">Fee</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editForm.fee}
+                          onChange={(e) => setEditForm((f) => ({ ...f, fee: e.target.value }))}
+                          className={cn(inputClass, 'text-[11px] px-1.5 py-1')}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-1">Dividend</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editForm.dividend}
+                          onChange={(e) => setEditForm((f) => ({ ...f, dividend: e.target.value }))}
+                          className={cn(inputClass, 'text-[11px] px-1.5 py-1')}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-1">
                       <button
                         type="button"
                         onClick={handleSaveEdit}
                         disabled={saving}
-                        className="px-2 py-1 text-[11px] rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                        className="flex-1 px-3 py-1.5 text-xs rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                       >
                         Save
                       </button>
@@ -522,7 +526,7 @@ export function ExecutionsCard({ trade }: Props) {
                           setEditingId(null)
                           setError(null)
                         }}
-                        className="px-2 py-1 text-[11px] rounded text-muted-foreground hover:text-foreground"
+                        className="px-4 py-1.5 text-xs rounded text-muted-foreground hover:text-foreground"
                       >
                         Cancel
                       </button>
@@ -534,96 +538,95 @@ export function ExecutionsCard({ trade }: Props) {
               return (
                 <div
                   key={exec.id}
-                  className={cn(
-                    'grid gap-2 items-center px-1 py-1 rounded hover:bg-accent/30 transition-colors',
-                    isDividendOnly
-                      ? 'grid-cols-[80px_1fr_1fr_72px]'
-                      : 'grid-cols-[80px_1fr_80px_80px_60px_80px_72px]'
-                  )}
+                  className="px-1 py-2 rounded hover:bg-accent/30 transition-colors border-b border-border/30 last:border-0"
                 >
-                  <span
-                    className={cn(
-                      'text-xs font-semibold font-mono px-2 py-0.5 rounded w-fit uppercase',
-                      isDividendOnly
-                        ? 'bg-[#00d4a1]/15 text-[#00d4a1]'
-                        : exec.action === 'buy'
-                        ? 'bg-[#00d4a1]/15 text-[#00d4a1]'
-                        : 'bg-[#ff4d6d]/15 text-[#ff4d6d]'
-                    )}
-                  >
+                  {/* Row 1: Action badge · Qty @ Price · action icons */}
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        'text-[11px] font-semibold font-mono px-2 py-0.5 rounded uppercase shrink-0',
+                        isDividendOnly
+                          ? 'bg-[#00d4a1]/15 text-[#00d4a1]'
+                          : exec.action === 'buy'
+                          ? 'bg-[#00d4a1]/15 text-[#00d4a1]'
+                          : 'bg-[#ff4d6d]/15 text-[#ff4d6d]'
+                      )}
+                    >
+                      {isDividendOnly ? (
+                        'DIV'
+                      ) : exec.action === 'buy' ? (
+                        <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" />BUY</span>
+                      ) : (
+                        <span className="flex items-center gap-1"><TrendingDown className="w-3 h-3" />SELL</span>
+                      )}
+                    </span>
+
                     {isDividendOnly ? (
-                      'DIV'
-                    ) : exec.action === 'buy' ? (
-                      <span className="flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3" /> BUY
+                      <span className="text-sm font-mono font-bold text-[#00d4a1]">
+                        +{fmt.currency(exec.dividend)}
                       </span>
                     ) : (
-                      <span className="flex items-center gap-1">
-                        <TrendingDown className="w-3 h-3" /> SELL
+                      <span className="text-sm font-mono font-medium">
+                        {exec.quantity}
+                        <span className="text-muted-foreground mx-1">@</span>
+                        {fmt.currency(exec.price, 4)}
                       </span>
                     )}
-                  </span>
-                  <span className="text-xs font-mono text-muted-foreground">
-                    {new Date(exec.datetime).toLocaleString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
 
-                  {isDividendOnly ? (
-                    <span className="text-xs font-mono text-right font-bold text-[#00d4a1]">
-                      +{fmt.currency(exec.dividend)}
+                    <div className="ml-auto flex items-center gap-0.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(exec)}
+                        className="p-1.5 rounded text-muted-foreground/60 hover:text-primary hover:bg-accent/60 transition-colors"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(exec.id)}
+                        disabled={deleting === exec.id}
+                        className="p-1.5 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-30"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Date · Fee · Dividend (lighter, smaller) */}
+                  <div className="flex items-center gap-3 mt-1 pl-1">
+                    <span className="text-[10px] font-mono text-muted-foreground/70">
+                      {new Date(exec.datetime).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
                     </span>
-                  ) : (
-                    <>
-                      <span className="text-xs font-mono text-right">{exec.quantity}</span>
-                      <span className="text-xs font-mono text-right">{fmt.currency(exec.price, 4)}</span>
-                      <span className="text-xs font-mono text-right text-muted-foreground">
-                        {exec.fee ? fmt.currency(exec.fee) : '—'}
+                    {!isDividendOnly && (exec.fee ?? 0) > 0 && (
+                      <span className="text-[10px] font-mono text-muted-foreground/60">
+                        Fee: {fmt.currency(exec.fee)}
                       </span>
-                      <span className="text-xs font-mono text-right text-muted-foreground">
-                        {exec.dividend ? fmt.currency(exec.dividend) : '—'}
+                    )}
+                    {!isDividendOnly && (exec.dividend ?? 0) > 0 && (
+                      <span className="text-[10px] font-mono text-muted-foreground/60">
+                        Div: {fmt.currency(exec.dividend)}
                       </span>
-                    </>
-                  )}
-
-                  <div className="flex items-center justify-end gap-1">
-                    <button
-                      type="button"
-                      onClick={() => startEdit(exec)}
-                      className="p-1 rounded text-muted-foreground/60 hover:text-primary hover:bg-accent/60 transition-colors"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(exec.id)}
-                      disabled={deleting === exec.id}
-                      className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-30"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    )}
                   </div>
                 </div>
               )
             })}
 
             {/* Summary row */}
-            <div className="border-t border-border/60 pt-3 mt-1 space-y-2">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-muted-foreground">
-                  Bought {totalBought} · Sold {totalSold} · Open {totalBought - totalSold}
-                </span>
-                <span className="text-muted-foreground">
-                  Avg cost: {summary.avgCostBasis > 0 ? fmt.currency(summary.avgCostBasis, 4) : '—'}
-                </span>
-              </div>
+            <div className="border-t border-border/60 pt-3 mt-2 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Realized P&L</span>
                 <span className={cn('text-base font-mono font-bold', pnlColor(summary.realizedPnl))}>
                   {summary.realizedPnl >= 0 ? '+' : ''}{fmt.currency(summary.realizedPnl)}
                 </span>
+              </div>
+              <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground/70">
+                <span>Bought {totalBought} · Sold {totalSold} · Open {totalBought - totalSold}</span>
+                <span>Avg cost: {summary.avgCostBasis > 0 ? fmt.currency(summary.avgCostBasis, 4) : '—'}</span>
               </div>
               {totalDividend > 0 && (
                 <div className="flex items-center justify-between">
@@ -634,7 +637,7 @@ export function ExecutionsCard({ trade }: Props) {
                 </div>
               )}
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
