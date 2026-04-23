@@ -5,8 +5,19 @@ export function Footer() {
   const currentYear = new Date().getFullYear()
 
   return (
-    <footer className="border-t border-border bg-card/50 px-6 py-4 text-sm text-muted-foreground mt-auto">
-      <div className="max-w-7xl mx-auto">
+    <footer className="border-t border-border bg-card/50 px-4 md:px-6 py-3 md:py-4 text-sm text-muted-foreground mt-auto">
+      {/* Mobile: compact single-line footer */}
+      <div className="flex md:hidden items-center justify-between text-xs text-muted-foreground">
+        <span>© {currentYear} Trade Reflection</span>
+        <div className="flex items-center gap-3">
+          <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+          <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
+          <Link to="/disclaimers" className="hover:text-foreground transition-colors">Disclaimer</Link>
+        </div>
+      </div>
+
+      {/* Desktop: full footer */}
+      <div className="hidden md:block max-w-7xl mx-auto">
         <div className="grid grid-cols-3 gap-8 mb-6 pb-6 border-b border-border/50">
           {/* Legal Links */}
           <div>
@@ -82,7 +93,7 @@ export function Footer() {
             ⚠️ <strong>Disclaimer:</strong> Trade Reflection is a journaling tool, not investment advice. Trading involves risk. See <Link to="/disclaimers" className="text-blue-400 hover:underline">Disclaimers</Link> before using.
           </p>
         </div>
-      </div>
+      </div>{/* end hidden md:block */}
     </footer>
   )
 }

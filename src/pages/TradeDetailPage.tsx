@@ -165,70 +165,72 @@ export function TradeDetailPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-5 animate-in overflow-x-hidden">
+    <div className="p-3 md:p-6 max-w-5xl mx-auto space-y-4 animate-in overflow-x-hidden">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+      <div className="space-y-2">
+        {/* Back + ticker row */}
+        <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/trades')}
-            className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors flex-shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div>
-            <div className="flex items-center flex-wrap gap-2">
-              <span className="font-display text-3xl tracking-widest">{trade.ticker}</span>
-              <div
-                className={cn(
-                  'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium',
-                  trade.direction === 'long' ? 'bg-profit-muted text-[#00d4a1]' : 'bg-loss-muted text-[#ff4d6d]'
-                )}
-              >
-                {trade.direction === 'long' ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                {trade.direction.toUpperCase()}
-              </div>
-              <span className="text-xs font-mono px-2 py-1 bg-accent rounded uppercase text-muted-foreground">
-                {trade.asset_type}
-              </span>
-              {trade.asset_type === 'option' && trade.option_type && (
-                <span className={cn(
-                  'text-xs font-mono px-2 py-1 rounded uppercase font-bold',
-                  trade.option_type === 'call'
-                    ? 'bg-profit-muted text-[#00d4a1]'
-                    : 'bg-loss-muted text-[#ff4d6d]'
-                )}>
-                  {trade.option_type}
-                </span>
-              )}
-              {trade.ai_grade && (
-                <span className={cn(
-                  'text-xs font-mono px-2 py-1 rounded font-bold',
-                  trade.ai_grade.startsWith('A') ? 'bg-profit-muted text-[#00d4a1]' :
-                  trade.ai_grade.startsWith('B') ? 'bg-blue-400/10 text-blue-400' :
-                  'bg-[#f0b429]/10 text-[#f0b429]'
-                )}>
-                  {trade.ai_grade}
-                </span>
-              )}
-              {trade.primary_strategy_name && (
-                <span className="text-[11px] font-mono px-2 py-1 rounded bg-primary/10 text-primary border border-primary/30">
-                  {trade.primary_strategy_name}
-                </span>
-              )}
-              <span className={cn(
-                'text-xs font-mono px-2 py-1 rounded',
-                trade.status === 'open' ? 'bg-[#f0b429]/10 text-[#f0b429]' :
-                trade.status === 'closed' ? 'bg-accent text-muted-foreground' :
-                'bg-blue-400/10 text-blue-400'
-              )}>
-                {trade.status.toUpperCase()}
-              </span>
-            </div>
-            <p className="text-muted-foreground text-sm mt-1">{fmt.dateTime(trade.entry_date)}</p>
-          </div>
+          <span className="font-display text-2xl md:text-3xl tracking-widest">{trade.ticker}</span>
+          <p className="text-muted-foreground text-xs md:text-sm ml-1">{fmt.dateTime(trade.entry_date)}</p>
         </div>
 
-        <div className="flex gap-2 flex-wrap flex-shrink-0">
+        {/* Badges row — wraps naturally */}
+        <div className="flex flex-wrap items-center gap-1.5 pl-10">
+          <div
+            className={cn(
+              'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium',
+              trade.direction === 'long' ? 'bg-profit-muted text-[#00d4a1]' : 'bg-loss-muted text-[#ff4d6d]'
+            )}
+          >
+            {trade.direction === 'long' ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+            {trade.direction.toUpperCase()}
+          </div>
+          <span className="text-xs font-mono px-2 py-1 bg-accent rounded uppercase text-muted-foreground">
+            {trade.asset_type}
+          </span>
+          {trade.asset_type === 'option' && trade.option_type && (
+            <span className={cn(
+              'text-xs font-mono px-2 py-1 rounded uppercase font-bold',
+              trade.option_type === 'call'
+                ? 'bg-profit-muted text-[#00d4a1]'
+                : 'bg-loss-muted text-[#ff4d6d]'
+            )}>
+              {trade.option_type}
+            </span>
+          )}
+          {trade.ai_grade && (
+            <span className={cn(
+              'text-xs font-mono px-2 py-1 rounded font-bold',
+              trade.ai_grade.startsWith('A') ? 'bg-profit-muted text-[#00d4a1]' :
+              trade.ai_grade.startsWith('B') ? 'bg-blue-400/10 text-blue-400' :
+              'bg-[#f0b429]/10 text-[#f0b429]'
+            )}>
+              {trade.ai_grade}
+            </span>
+          )}
+          {trade.primary_strategy_name && (
+            <span className="text-[11px] font-mono px-2 py-1 rounded bg-primary/10 text-primary border border-primary/30">
+              {trade.primary_strategy_name}
+            </span>
+          )}
+          <span className={cn(
+            'text-xs font-mono px-2 py-1 rounded',
+            trade.status === 'open' ? 'bg-[#f0b429]/10 text-[#f0b429]' :
+            trade.status === 'closed' ? 'bg-accent text-muted-foreground' :
+            'bg-blue-400/10 text-blue-400'
+          )}>
+            {trade.status.toUpperCase()}
+          </span>
+        </div>
+
+        {/* Action buttons row */}
+        <div className="flex gap-2 flex-wrap pl-10">
           {trade.status === 'closed' && (
             <button
               onClick={() => gradeTrade(trade, { force: !!trade.ai_grade })}
