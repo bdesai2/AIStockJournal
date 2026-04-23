@@ -219,11 +219,12 @@ export function NewTradePage() {
   // Auto-calculate initial_risk when entry_price, stop_loss, or quantity changes
   useEffect(() => {
     if (entryPrice && quantity && stopLoss) {
+      const multiplier = assetType === 'option' ? 100 : 1
       const riskPerShare = Math.abs(entryPrice - stopLoss)
-      const totalRisk = riskPerShare * quantity - (fees || 0)
+      const totalRisk = riskPerShare * quantity * multiplier - (fees || 0)
       setValue('initial_risk', Math.max(0, totalRisk), { shouldDirty: false })
     }
-  }, [entryPrice, quantity, stopLoss, fees, setValue])
+  }, [entryPrice, quantity, stopLoss, fees, assetType, setValue])
 
   // Auto-calculate risk_percent based on selected account's starting balance
   useEffect(() => {
