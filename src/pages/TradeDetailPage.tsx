@@ -165,9 +165,9 @@ export function TradeDetailPage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-5 animate-in">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-5 animate-in overflow-x-hidden">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/trades')}
@@ -176,7 +176,7 @@ export function TradeDetailPage() {
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center flex-wrap gap-2">
               <span className="font-display text-3xl tracking-widest">{trade.ticker}</span>
               <div
                 className={cn(
@@ -228,7 +228,7 @@ export function TradeDetailPage() {
           </div>
         </div>
 
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap flex-shrink-0">
           {trade.status === 'closed' && (
             <button
               onClick={() => gradeTrade(trade, { force: !!trade.ai_grade })}
@@ -269,26 +269,26 @@ export function TradeDetailPage() {
       {/* P&L hero */}
       {trade.net_pnl != null && (
         <div className={cn(
-          'rounded-lg border p-5 flex items-center gap-6',
+          'rounded-lg border p-4 md:p-5 flex flex-wrap items-center gap-4 md:gap-6',
           isProfit ? 'border-[#00d4a1]/20 bg-profit-muted' : 'border-[#ff4d6d]/20 bg-loss-muted'
         )}>
           {isProfit ? <TrendingUp className="w-8 h-8 text-[#00d4a1]" /> : <TrendingDown className="w-8 h-8 text-[#ff4d6d]" />}
           <div>
             <p className="text-xs text-muted-foreground mb-1">Net P&L</p>
-            <p className={cn('text-4xl font-mono font-bold', pnlColor(trade.net_pnl))}>
+            <p className={cn('text-3xl md:text-4xl font-mono font-bold', pnlColor(trade.net_pnl))}>
               {fmt.currency(trade.net_pnl)}
             </p>
           </div>
-          <div className="ml-6 pl-6 border-l border-border">
+          <div className="pl-4 md:pl-6 md:ml-0 border-l border-border">
             <p className="text-xs text-muted-foreground mb-1">Return</p>
-            <p className={cn('text-2xl font-mono font-semibold', pnlColor(trade.net_pnl))}>
+            <p className={cn('text-xl md:text-2xl font-mono font-semibold', pnlColor(trade.net_pnl))}>
               {fmt.percent(pnlPercent ?? null)}
             </p>
           </div>
           {trade.r_multiple != null && (
-            <div className="ml-6 pl-6 border-l border-border">
+            <div className="pl-4 md:pl-6 md:ml-0 border-l border-border">
               <p className="text-xs text-muted-foreground mb-1">R-Multiple</p>
-              <p className={cn('text-2xl font-mono font-semibold', pnlColor(trade.r_multiple))}>
+              <p className={cn('text-xl md:text-2xl font-mono font-semibold', pnlColor(trade.r_multiple))}>
                 {fmt.rMultiple(trade.r_multiple)}
               </p>
             </div>

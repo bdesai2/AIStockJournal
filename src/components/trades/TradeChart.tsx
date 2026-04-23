@@ -72,8 +72,8 @@ export function TradeChart({ trade }: TradeChartProps) {
 
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-border/60">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Price Action — {trade.ticker}
           </span>
@@ -88,7 +88,7 @@ export function TradeChart({ trade }: TradeChartProps) {
           <span className="text-[10px] font-mono text-muted-foreground bg-muted/30 px-2 py-1 rounded">
             {tradeTypeLabel}
           </span>
-          <span className="text-[10px] font-mono text-muted-foreground bg-muted/30 px-2 py-1 rounded">
+          <span className="hidden sm:inline text-[10px] font-mono text-muted-foreground bg-muted/30 px-2 py-1 rounded">
             {userTimezone}
           </span>
         </div>
@@ -113,9 +113,9 @@ export function TradeChart({ trade }: TradeChartProps) {
         </div>
       </div>
 
-      <div style={{ height: '500px', overflow: 'hidden', position: 'relative' }}>
+      <div className="relative overflow-hidden h-[280px] sm:h-[400px] md:h-[500px]">
         <iframe
-          src={`https://www.tradingview.com/widgetembed/?symbol=${trade.ticker}&interval=${interval}&timezone=${encodeURIComponent(userTimezone)}&theme=dark&style=1&locale=en&hide_side_toolbar=0&allow_symbol_change=0&container_id=tradingview_${trade.id}`}
+          src={`https://www.tradingview.com/widgetembed/?symbol=${trade.ticker}&interval=${interval}&timezone=${encodeURIComponent(userTimezone)}&theme=dark&style=1&locale=en&hide_side_toolbar=1&allow_symbol_change=0&container_id=tradingview_${trade.id}`}
           title={`${trade.ticker} Chart`}
           style={{
             width: '100%',
