@@ -165,7 +165,7 @@ export function TradeDetailPage() {
   }
 
   return (
-    <div className="p-3 md:p-6 max-w-5xl mx-auto space-y-4 animate-in overflow-x-hidden">
+    <div className="p-3 md:p-6 space-y-4 animate-in">
       {/* Header */}
       <div className="space-y-2 md:flex md:items-start md:justify-between md:space-y-0 md:gap-4">
         {/* Left: back + ticker + badges */}
