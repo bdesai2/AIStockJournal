@@ -426,6 +426,18 @@ export function ExecutionsCard({ trade }: Props) {
 
         {executions.length > 0 && (
           <div className="space-y-0.5">
+            {/* Desktop column headers */}
+            {!editingId && (
+              <div className="hidden md:grid grid-cols-[80px_1fr_80px_80px_60px_80px_72px] gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground px-1">
+                <span>Action</span>
+                <span>Date / Time</span>
+                <span className="text-right">Qty</span>
+                <span className="text-right">Price</span>
+                <span className="text-right">Fee</span>
+                <span className="text-right">Dividend</span>
+                <span className="text-right">Actions</span>
+              </div>
+            )}
             {executions.map((exec) => {
               const isDividendOnly = exec.quantity === 0 && exec.price === 0 && (exec.dividend ?? 0) > 0
               const isEditing = editingId === exec.id
@@ -536,15 +548,95 @@ export function ExecutionsCard({ trade }: Props) {
               }
 
               return (
-                <div
-                  key={exec.id}
-                  className="px-1 py-2 rounded hover:bg-accent/30 transition-colors border-b border-border/30 last:border-0"
-                >
-                  {/* Row 1: Action badge · Qty @ Price · action icons */}
-                  <div className="flex items-center gap-2">
+                <div key={exec.id} className="border-b border-border/30 last:border-0">
+                  {/* Mobile: stacked card layout */}
+                  <div className="md:hidden px-1 py-2 rounded hover:bg-accent/30 transition-colors">
+                    {/* Row 1: Action badge · Qty @ Price · action icons */}
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'text-[11px] font-semibold font-mono px-2 py-0.5 rounded uppercase shrink-0',
+                          isDividendOnly
+                            ? 'bg-[#00d4a1]/15 text-[#00d4a1]'
+                            : exec.action === 'buy'
+                            ? 'bg-[#00d4a1]/15 text-[#00d4a1]'
+                            : 'bg-[#ff4d6d]/15 text-[#ff4d6d]'
+                        )}
+                      >
+                        {isDividendOnly ? (
+                          'DIV'
+                        ) : exec.action === 'buy' ? (
+                          <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" />BUY</span>
+                        ) : (
+                          <span className="flex items-center gap-1"><TrendingDown className="w-3 h-3" />SELL</span>
+                        )}
+                      </span>
+
+                      {isDividendOnly ? (
+                        <span className="text-sm font-mono font-bold text-[#00d4a1]">
+                          +{fmt.currency(exec.dividend)}
+                        </span>
+                      ) : (
+                        <span className="text-sm font-mono font-medium">
+                          {exec.quantity}
+                          <span className="text-muted-foreground mx-1">@</span>
+                          {fmt.currency(exec.price, 4)}
+                        </span>
+                      )}
+
+                      <div className="ml-auto flex items-center gap-0.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(exec)}
+                          className="p-1.5 rounded text-muted-foreground/60 hover:text-primary hover:bg-accent/60 transition-colors"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(exec.id)}
+                          disabled={deleting === exec.id}
+                          className="p-1.5 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-30"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Row 2: Date · Fee · Dividend (lighter, smaller) */}
+                    <div className="flex items-center gap-3 mt-1 pl-1">
+                      <span className="text-[10px] font-mono text-muted-foreground/70">
+                        {new Date(exec.datetime).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                      {!isDividendOnly && (exec.fee ?? 0) > 0 && (
+                        <span className="text-[10px] font-mono text-muted-foreground/60">
+                          Fee: {fmt.currency(exec.fee)}
+                        </span>
+                      )}
+                      {!isDividendOnly && (exec.dividend ?? 0) > 0 && (
+                        <span className="text-[10px] font-mono text-muted-foreground/60">
+                          Div: {fmt.currency(exec.dividend)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Desktop: original grid layout */}
+                  <div
+                    className={cn(
+                      'hidden md:grid gap-2 items-center px-1 py-1 rounded hover:bg-accent/30 transition-colors',
+                      isDividendOnly
+                        ? 'grid-cols-[80px_1fr_1fr_72px]'
+                        : 'grid-cols-[80px_1fr_80px_80px_60px_80px_72px]'
+                    )}
+                  >
                     <span
                       className={cn(
-                        'text-[11px] font-semibold font-mono px-2 py-0.5 rounded uppercase shrink-0',
+                        'text-xs font-semibold font-mono px-2 py-0.5 rounded w-fit uppercase',
                         isDividendOnly
                           ? 'bg-[#00d4a1]/15 text-[#00d4a1]'
                           : exec.action === 'buy'
@@ -555,45 +647,12 @@ export function ExecutionsCard({ trade }: Props) {
                       {isDividendOnly ? (
                         'DIV'
                       ) : exec.action === 'buy' ? (
-                        <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" />BUY</span>
+                        <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" /> BUY</span>
                       ) : (
-                        <span className="flex items-center gap-1"><TrendingDown className="w-3 h-3" />SELL</span>
+                        <span className="flex items-center gap-1"><TrendingDown className="w-3 h-3" /> SELL</span>
                       )}
                     </span>
-
-                    {isDividendOnly ? (
-                      <span className="text-sm font-mono font-bold text-[#00d4a1]">
-                        +{fmt.currency(exec.dividend)}
-                      </span>
-                    ) : (
-                      <span className="text-sm font-mono font-medium">
-                        {exec.quantity}
-                        <span className="text-muted-foreground mx-1">@</span>
-                        {fmt.currency(exec.price, 4)}
-                      </span>
-                    )}
-
-                    <div className="ml-auto flex items-center gap-0.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => startEdit(exec)}
-                        className="p-1.5 rounded text-muted-foreground/60 hover:text-primary hover:bg-accent/60 transition-colors"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(exec.id)}
-                        disabled={deleting === exec.id}
-                        className="p-1.5 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-30"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Row 2: Date · Fee · Dividend (lighter, smaller) */}
-                  <div className="flex items-center gap-3 mt-1 pl-1">
-                    <span className="text-[10px] font-mono text-muted-foreground/70">
+                    <span className="text-xs font-mono text-muted-foreground">
                       {new Date(exec.datetime).toLocaleString('en-US', {
                         month: 'short',
                         day: 'numeric',
@@ -601,16 +660,38 @@ export function ExecutionsCard({ trade }: Props) {
                         minute: '2-digit',
                       })}
                     </span>
-                    {!isDividendOnly && (exec.fee ?? 0) > 0 && (
-                      <span className="text-[10px] font-mono text-muted-foreground/60">
-                        Fee: {fmt.currency(exec.fee)}
+                    {isDividendOnly ? (
+                      <span className="text-xs font-mono text-right font-bold text-[#00d4a1]">
+                        +{fmt.currency(exec.dividend)}
                       </span>
+                    ) : (
+                      <>
+                        <span className="text-xs font-mono text-right">{exec.quantity}</span>
+                        <span className="text-xs font-mono text-right">{fmt.currency(exec.price, 4)}</span>
+                        <span className="text-xs font-mono text-right text-muted-foreground">
+                          {exec.fee ? fmt.currency(exec.fee) : '—'}
+                        </span>
+                        <span className="text-xs font-mono text-right text-muted-foreground">
+                          {exec.dividend ? fmt.currency(exec.dividend) : '—'}
+                        </span>
+                      </>
                     )}
-                    {!isDividendOnly && (exec.dividend ?? 0) > 0 && (
-                      <span className="text-[10px] font-mono text-muted-foreground/60">
-                        Div: {fmt.currency(exec.dividend)}
-                      </span>
-                    )}
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(exec)}
+                        className="p-1 rounded text-muted-foreground/60 hover:text-primary hover:bg-accent/60 transition-colors"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(exec.id)}
+                        disabled={deleting === exec.id}
+                        className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-30"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               )

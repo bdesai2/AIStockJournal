@@ -167,21 +167,22 @@ export function TradeDetailPage() {
   return (
     <div className="p-3 md:p-6 max-w-5xl mx-auto space-y-4 animate-in overflow-x-hidden">
       {/* Header */}
-      <div className="space-y-2">
-        {/* Back + ticker row */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/trades')}
-            className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors flex-shrink-0"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <span className="font-display text-2xl md:text-3xl tracking-widest">{trade.ticker}</span>
-          <p className="text-muted-foreground text-xs md:text-sm ml-1">{fmt.dateTime(trade.entry_date)}</p>
-        </div>
+      <div className="space-y-2 md:flex md:items-start md:justify-between md:space-y-0 md:gap-4">
+        {/* Left: back + ticker + badges */}
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/trades')}
+              className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors flex-shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <span className="font-display text-2xl md:text-3xl tracking-widest">{trade.ticker}</span>
+            <p className="text-muted-foreground text-xs md:text-sm ml-1">{fmt.dateTime(trade.entry_date)}</p>
+          </div>
 
-        {/* Badges row — wraps naturally */}
-        <div className="flex flex-wrap items-center gap-1.5 pl-10">
+          {/* Badges row — wraps naturally */}
+          <div className="flex flex-wrap items-center gap-1.5 pl-10">
           <div
             className={cn(
               'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium',
@@ -227,10 +228,11 @@ export function TradeDetailPage() {
           )}>
             {trade.status.toUpperCase()}
           </span>
+          </div>
         </div>
 
-        {/* Action buttons row */}
-        <div className="flex gap-2 flex-wrap pl-10">
+        {/* Action buttons — right side on desktop, below on mobile */}
+        <div className="flex gap-2 flex-wrap pl-10 md:pl-0 md:flex-shrink-0">
           {trade.status === 'closed' && (
             <button
               onClick={() => gradeTrade(trade, { force: !!trade.ai_grade })}
