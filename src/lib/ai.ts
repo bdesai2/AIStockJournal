@@ -69,7 +69,16 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   const url = baseUrl ? `${baseUrl}${path}` : path
   console.log(`[AI API] POST ${path}`, JSON.stringify(body, null, 2))
 
-  const { data: { session } } = await supabase.auth.getSession()
+  let { data: { session } } = await supabase.auth.getSession()
+
+  // If the cached token is expired, force a refresh before sending the request.
+  // getSession() returns the stored session without awaiting a token refresh,
+  // so an expired access_token will cause a 401 on the backend.
+  if (session?.expires_at && session.expires_at * 1000 < Date.now()) {
+    const { data } = await supabase.auth.refreshSession()
+    session = data.session
+  }
+
   if (!session?.access_token) {
     throw new Error('Not authenticated. Please sign in again.')
   }
