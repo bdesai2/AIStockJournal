@@ -1380,7 +1380,9 @@ export function DashboardPage() {
                           <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(215 20% 50%)' }} tickLine={false} axisLine={false} />
                           <YAxis tick={{ fontSize: 10, fill: 'hsl(215 20% 50%)' }} tickLine={false} axisLine={false} tickFormatter={compactCurrency} />
                           <Tooltip
-                            contentStyle={{ background: 'hsl(222 47% 8%)', border: '1px solid hsl(222 47% 14%)', borderRadius: '6px', fontSize: '12px' }}
+                            contentStyle={{ background: 'hsl(222 47% 8%)', border: '1px solid hsl(222 47% 14%)', borderRadius: '6px', fontSize: '12px', color: 'hsl(210 40% 96%)' }}
+                            labelStyle={{ color: 'hsl(210 40% 96%)' }}
+                            itemStyle={{ color: 'hsl(210 40% 96%)' }}
                             formatter={(v: number, _n, props) => [
                               `${fmt.currency(v)} · ${props.payload.count} trades · ${props.payload.winRate}% WR`, 'P&L'
                             ]}
@@ -1404,7 +1406,9 @@ export function DashboardPage() {
                           <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(215 20% 50%)' }} tickLine={false} axisLine={false} />
                           <YAxis tick={{ fontSize: 10, fill: 'hsl(215 20% 50%)' }} tickLine={false} axisLine={false} tickFormatter={compactCurrency} />
                           <Tooltip
-                            contentStyle={{ background: 'hsl(222 47% 8%)', border: '1px solid hsl(222 47% 14%)', borderRadius: '6px', fontSize: '12px' }}
+                            contentStyle={{ background: 'hsl(222 47% 8%)', border: '1px solid hsl(222 47% 14%)', borderRadius: '6px', fontSize: '12px', color: 'hsl(210 40% 96%)' }}
+                            labelStyle={{ color: 'hsl(210 40% 96%)' }}
+                            itemStyle={{ color: 'hsl(210 40% 96%)' }}
                             formatter={(v: number, _n, props) => [
                               `${fmt.currency(v)} · ${props.payload.count} trades · ${props.payload.winRate}% WR`, 'P&L'
                             ]}
