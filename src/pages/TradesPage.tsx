@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PlusCircle, Search, Filter, ArrowUpDown, Download } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
@@ -89,8 +89,22 @@ function getInitialFilters(): {
 
 export function TradesPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user, selectedAccountId } = useAuthStore()
   const { trades, loading, fetchTrades } = useTradeStore()
+  const drilldown = searchParams.get('drilldown')?.trim().toLowerCase() ?? ''
+  const exitDateFilter = searchParams.get('exitDate')?.trim() ?? ''
+  const exitDateFromFilter = searchParams.get('exitDateFrom')?.trim() ?? ''
+  const exitDateToFilter = searchParams.get('exitDateTo')?.trim() ?? ''
+  const hasChartDrilldown = !!exitDateFilter || (!!exitDateFromFilter && !!exitDateToFilter)
+  const drilldownLabel =
+    drilldown === 'daily'
+      ? 'Daily P&L'
+      : drilldown === 'weekly'
+        ? 'Weekly P&L'
+        : drilldown === 'monthly'
+          ? 'Monthly P&L'
+          : 'Chart'
 
   const [search, setSearch] = useState(() => getInitialFilters().search)
   const [assetFilter, setAssetFilter] = useState<AssetType | 'all'>(() => getInitialFilters().assetFilter)
@@ -125,7 +139,21 @@ export function TradesPage() {
   const filtered = useMemo(() => {
     let result = [...trades]
 
-    if (search.trim()) {
+    if (exitDateFilter) {
+      result = result.filter(
+        (t) => t.status === 'closed' && !!t.exit_date && t.exit_date.slice(0, 10) === exitDateFilter
+      )
+    }
+
+    if (exitDateFromFilter && exitDateToFilter) {
+      result = result.filter((t) => {
+        if (t.status !== 'closed' || !t.exit_date) return false
+        const day = t.exit_date.slice(0, 10)
+        return day >= exitDateFromFilter && day <= exitDateToFilter
+      })
+    }
+
+    if (!hasChartDrilldown && search.trim()) {
       const q = search.toLowerCase()
       result = result.filter(
         (t) =>
@@ -134,10 +162,10 @@ export function TradesPage() {
           t.setup_notes?.toLowerCase().includes(q)
       )
     }
-    if (assetFilter !== 'all') result = result.filter((t) => t.asset_type === assetFilter)
-    if (statusFilter !== 'all') result = result.filter((t) => t.status === statusFilter)
-    if (dirFilter !== 'all') result = result.filter((t) => t.direction === dirFilter)
-    if (gradeFilter !== 'all') {
+    if (!hasChartDrilldown && assetFilter !== 'all') result = result.filter((t) => t.asset_type === assetFilter)
+    if (!hasChartDrilldown && statusFilter !== 'all') result = result.filter((t) => t.status === statusFilter)
+    if (!hasChartDrilldown && dirFilter !== 'all') result = result.filter((t) => t.direction === dirFilter)
+    if (!hasChartDrilldown && gradeFilter !== 'all') {
       if (gradeFilter === '-') {
         result = result.filter((t) => !t.ai_grade)
       } else {
@@ -176,7 +204,20 @@ export function TradesPage() {
     })
 
     return result
-  }, [trades, search, assetFilter, statusFilter, dirFilter, gradeFilter, sortKey, sortDir])
+  }, [
+    trades,
+    exitDateFilter,
+    exitDateFromFilter,
+    exitDateToFilter,
+    hasChartDrilldown,
+    search,
+    assetFilter,
+    statusFilter,
+    dirFilter,
+    gradeFilter,
+    sortKey,
+    sortDir,
+  ])
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -226,6 +267,32 @@ export function TradesPage() {
 
       {/* Filters */}
       <div className="p-4 rounded-lg border border-border bg-card space-y-3">
+        {hasChartDrilldown && (
+          <div className="flex items-center justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+            <p className="text-xs text-foreground/90">
+              {exitDateFilter && (
+                <>Showing trades contributing to {drilldownLabel} bar for <span className="font-semibold">{exitDateFilter}</span></>
+              )}
+              {!exitDateFilter && exitDateFromFilter && exitDateToFilter && (
+                <>Showing trades contributing to {drilldownLabel} range <span className="font-semibold">{exitDateFromFilter}</span> to <span className="font-semibold">{exitDateToFilter}</span></>
+              )}
+            </p>
+            <button
+              onClick={() => {
+                const next = new URLSearchParams(searchParams)
+                next.delete('drilldown')
+                next.delete('exitDate')
+                next.delete('exitDateFrom')
+                next.delete('exitDateTo')
+                setSearchParams(next)
+              }}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
         {/* Search (full-width) */}
         <div className="relative w-full">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />

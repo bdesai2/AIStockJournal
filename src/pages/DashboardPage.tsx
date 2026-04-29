@@ -34,6 +34,13 @@ function compactCurrency(v: number): string {
   return `${sign}$${abs.toFixed(0)}`
 }
 
+function toDateKeyLocal(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 // ── Dimension Card ─────────────────────────────────────────────────────────────
 
 function DimensionCard({ title, data, labelMap }: {
@@ -229,7 +236,7 @@ export function DashboardPage() {
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(-30)
-      .map(([date, pnl]) => ({ date: date.slice(5), pnl }))
+      .map(([date, pnl]) => ({ date: date.slice(5), fullDate: date, pnl }))
   }, [filteredTrades])
 
   // 52-week P&L activity heatmap
@@ -323,7 +330,17 @@ export function DashboardPage() {
         const [year, month] = key.split('-')
         const label = new Date(Number(year), Number(month) - 1, 1)
           .toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-        return { key, label, pnl, count, winRate: count > 0 ? Math.round((wins / count) * 100) : 0 }
+        const monthStart = new Date(Number(year), Number(month) - 1, 1)
+        const monthEnd = new Date(Number(year), Number(month), 0)
+        return {
+          key,
+          label,
+          fromDate: toDateKeyLocal(monthStart),
+          toDate: toDateKeyLocal(monthEnd),
+          pnl,
+          count,
+          winRate: count > 0 ? Math.round((wins / count) * 100) : 0,
+        }
       })
   }, [filteredTrades])
 
@@ -350,8 +367,18 @@ export function DashboardPage() {
       .slice(-16)
       .map(([key, { pnl, count, wins }]) => {
         const d = new Date(key)
+        const weekEnd = new Date(d)
+        weekEnd.setDate(d.getDate() + 6)
         const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-        return { key, label, pnl, count, winRate: count > 0 ? Math.round((wins / count) * 100) : 0 }
+        return {
+          key,
+          label,
+          fromDate: key,
+          toDate: toDateKeyLocal(weekEnd),
+          pnl,
+          count,
+          winRate: count > 0 ? Math.round((wins / count) * 100) : 0,
+        }
       })
   }, [filteredTrades])
 
@@ -1136,9 +1163,10 @@ export function DashboardPage() {
 
             {/* Daily P&L bars */}
             <div className="rounded-lg border border-border bg-card p-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
                 Daily P&L (30d)
               </p>
+              <p className="text-[11px] text-muted-foreground/80 mb-3">Click a bar to open matching trades</p>
               {dailyPnl.length > 0 ? (
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart data={dailyPnl} barSize={6}>
@@ -1162,7 +1190,15 @@ export function DashboardPage() {
                       itemStyle={{ color: 'hsl(210 40% 96%)' }}
                       formatter={(v: number) => [fmt.currency(v), 'P&L']}
                     />
-                    <Bar dataKey="pnl" radius={[2, 2, 0, 0]}>
+                    <Bar
+                      dataKey="pnl"
+                      radius={[2, 2, 0, 0]}
+                      onClick={(barData: any) => {
+                        const fullDate = barData?.payload?.fullDate
+                        if (!fullDate) return
+                        navigate(`/trades?drilldown=daily&exitDate=${encodeURIComponent(fullDate)}`)
+                      }}
+                    >
                       {dailyPnl.map((entry, i) => (
                         <Cell
                           key={i}
@@ -1374,7 +1410,8 @@ export function DashboardPage() {
                   {/* Monthly P&L — full-width BarChart */}
                   {monthlyData.length > 0 && (
                     <div className="xl:col-span-2 rounded-lg border border-border bg-card p-4">
-                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">Monthly P&L</p>
+                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Monthly P&L</p>
+                      <p className="text-[11px] text-muted-foreground/80 mb-3">Click a bar to open matching trades</p>
                       <ResponsiveContainer width="100%" height={180}>
                         <BarChart data={monthlyData} barSize={24}>
                           <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(215 20% 50%)' }} tickLine={false} axisLine={false} />
@@ -1387,7 +1424,16 @@ export function DashboardPage() {
                               `${fmt.currency(v)} · ${props.payload.count} trades · ${props.payload.winRate}% WR`, 'P&L'
                             ]}
                           />
-                          <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
+                          <Bar
+                            dataKey="pnl"
+                            radius={[3, 3, 0, 0]}
+                            onClick={(barData: any) => {
+                              const fromDate = barData?.payload?.fromDate
+                              const toDate = barData?.payload?.toDate
+                              if (!fromDate || !toDate) return
+                              navigate(`/trades?drilldown=monthly&exitDateFrom=${encodeURIComponent(fromDate)}&exitDateTo=${encodeURIComponent(toDate)}`)
+                            }}
+                          >
                             {monthlyData.map((entry, i) => (
                               <Cell key={i} fill={entry.pnl >= 0 ? '#00d4a1' : '#ff4d6d'} fillOpacity={0.85} />
                             ))}
@@ -1400,7 +1446,8 @@ export function DashboardPage() {
                   {/* Weekly P&L — full-width BarChart */}
                   {weeklyData.length > 0 && (
                     <div className="xl:col-span-2 rounded-lg border border-border bg-card p-4">
-                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">Weekly P&L</p>
+                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Weekly P&L</p>
+                      <p className="text-[11px] text-muted-foreground/80 mb-3">Click a bar to open matching trades</p>
                       <ResponsiveContainer width="100%" height={180}>
                         <BarChart data={weeklyData} barSize={16}>
                           <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(215 20% 50%)' }} tickLine={false} axisLine={false} />
@@ -1413,7 +1460,16 @@ export function DashboardPage() {
                               `${fmt.currency(v)} · ${props.payload.count} trades · ${props.payload.winRate}% WR`, 'P&L'
                             ]}
                           />
-                          <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
+                          <Bar
+                            dataKey="pnl"
+                            radius={[3, 3, 0, 0]}
+                            onClick={(barData: any) => {
+                              const fromDate = barData?.payload?.fromDate
+                              const toDate = barData?.payload?.toDate
+                              if (!fromDate || !toDate) return
+                              navigate(`/trades?drilldown=weekly&exitDateFrom=${encodeURIComponent(fromDate)}&exitDateTo=${encodeURIComponent(toDate)}`)
+                            }}
+                          >
                             {weeklyData.map((entry, i) => (
                               <Cell key={i} fill={entry.pnl >= 0 ? '#00d4a1' : '#ff4d6d'} fillOpacity={0.85} />
                             ))}
