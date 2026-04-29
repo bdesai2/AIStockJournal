@@ -174,12 +174,23 @@ export function DashboardPage() {
   }, [trades, dateRangeFrom, dateRangeTo, filterStrategy, filterAssetType, filterSector])
 
   const closedTrades = useMemo(
-    () => filteredTrades.filter(t => t.status === 'closed').slice(0, 30),
+    () => filteredTrades.filter(t => t.status === 'closed'),
     [filteredTrades]
   )
 
+  const recentClosedTrades = useMemo(
+    () => [...closedTrades]
+      .sort((a, b) => {
+        const aTime = new Date(a.exit_date || a.entry_date).getTime()
+        const bTime = new Date(b.exit_date || b.entry_date).getTime()
+        return bTime - aTime
+      })
+      .slice(0, 10),
+    [closedTrades]
+  )
+
   const handleRunDigest = () => {
-    runWeeklyDigest(closedTrades)
+    runWeeklyDigest(recentClosedTrades)
     setDigestOpen(true)
   }
 
@@ -1068,7 +1079,7 @@ export function DashboardPage() {
           )}
 
           {/* AI Insights card */}
-          {closedTrades.length >= 5 && (
+          {recentClosedTrades.length >= 5 && (
             <div className="rounded-lg border border-border bg-card overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <div className="flex items-center gap-2">
@@ -1077,7 +1088,7 @@ export function DashboardPage() {
                     AI Insights
                   </span>
                   {(digestResult || lastDigest) && (
-                    <span className="text-xs text-muted-foreground font-mono">(last {closedTrades.length} trades)</span>
+                    <span className="text-xs text-muted-foreground font-mono">(recent {recentClosedTrades.length} trades)</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
@@ -1105,6 +1116,47 @@ export function DashboardPage() {
 
               {(digestResult || lastDigest) && digestOpen && (
                 <div className="p-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  <div className="xl:col-span-2 rounded-md border border-border/70 bg-muted/20 p-3">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
+                      Recent Trend (10 Trades)
+                    </p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[11px] text-muted-foreground">Direction:</span>
+                      <span className={`text-xs font-semibold uppercase tracking-wide ${(digestResult?.performance_trend || lastDigest?.performance_trend) === 'increasing' ? 'text-[#00d4a1]' : (digestResult?.performance_trend || lastDigest?.performance_trend) === 'decreasing' ? 'text-[#ff4d6d]' : 'text-foreground/80'}`}>
+                        {String(digestResult?.performance_trend || lastDigest?.performance_trend || 'mixed').replace('_', ' ')}
+                      </span>
+                    </div>
+                    <p className="text-sm text-foreground/90 leading-relaxed">
+                      {digestResult?.trend_feedback || lastDigest?.trend_feedback || 'Trend feedback will appear after running digest.'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium text-[#ff4d6d] uppercase tracking-wider mb-2">
+                      Increasing Mistakes
+                    </p>
+                    {(digestResult?.increasing_mistakes || lastDigest?.increasing_mistakes || []).length > 0 ? (
+                      (digestResult?.increasing_mistakes || lastDigest?.increasing_mistakes || []).map((m: string, i: number) => (
+                        <p key={i} className="text-sm text-foreground/90 mb-1">• {m}</p>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No worsening mistake pattern detected.</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium text-[#00d4a1] uppercase tracking-wider mb-2">
+                      Performance Drivers
+                    </p>
+                    {(digestResult?.performance_drivers || lastDigest?.performance_drivers || []).length > 0 ? (
+                      (digestResult?.performance_drivers || lastDigest?.performance_drivers || []).map((d: string, i: number) => (
+                        <p key={i} className="text-sm text-foreground/90 mb-1">• {d}</p>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No clear performance driver identified yet.</p>
+                    )}
+                  </div>
+
                   <div>
                     <p className="text-xs font-medium text-[#00d4a1] uppercase tracking-wider mb-2">
                       What's Working

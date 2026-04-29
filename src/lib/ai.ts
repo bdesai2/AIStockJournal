@@ -29,6 +29,10 @@ export interface WeeklyDigestResult {
   positive_patterns: DigestPattern[]
   negative_patterns: DigestPattern[]
   actionable_lesson: string
+  performance_trend: 'increasing' | 'decreasing' | 'mixed' | 'flat'
+  trend_feedback: string
+  increasing_mistakes: string[]
+  performance_drivers: string[]
 }
 
 export interface TradeAnalysisResult {
@@ -165,12 +169,14 @@ export const aiApi = {
   }) => post<SetupCheckResult>('/api/ai/setup-check', params),
 
   /**
-   * Analyze patterns from the last 30 closed trades
+   * Analyze patterns from the most recent closed trades
    */
   weeklyDigest: (trades: Trade[]) => {
     // Extract only needed fields for each trade
     const tradesForDigest = trades.map(trade => ({
       ticker: trade.ticker,
+      entry_date: trade.entry_date,
+      exit_date: trade.exit_date,
       direction: trade.direction,
       entry_price: trade.entry_price,
       exit_price: trade.exit_price,

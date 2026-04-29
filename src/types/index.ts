@@ -275,6 +275,10 @@ export interface WeeklyDigest {
   positive_patterns: DigestPattern[]
   negative_patterns: DigestPattern[]
   actionable_lesson: string
+  performance_trend?: 'increasing' | 'decreasing' | 'mixed' | 'flat'
+  trend_feedback?: string
+  increasing_mistakes?: string[]
+  performance_drivers?: string[]
   trade_count?: number
   generated_at: string
   created_at: string

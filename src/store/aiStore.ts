@@ -179,6 +179,10 @@ export const useAiStore = create<AiState>((set) => ({
           positive_patterns: result.positive_patterns,
           negative_patterns: result.negative_patterns,
           actionable_lesson: result.actionable_lesson,
+          performance_trend: result.performance_trend,
+          trend_feedback: result.trend_feedback,
+          increasing_mistakes: result.increasing_mistakes,
+          performance_drivers: result.performance_drivers,
           trade_count: trades.length,
           generated_at: new Date().toISOString(),
         })
