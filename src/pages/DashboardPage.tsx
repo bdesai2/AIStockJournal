@@ -43,10 +43,16 @@ function toDateKeyLocal(d: Date): string {
 
 // ── Dimension Card ─────────────────────────────────────────────────────────────
 
-function DimensionCard({ title, data, labelMap }: {
+function DimensionCard({ 
+  title, 
+  data, 
+  labelMap,
+  onDrilldown,
+}: {
   title: string
   data: Record<string, { count: number; pnl: number; win_rate: number }>
   labelMap?: Record<string, string>
+  onDrilldown?: (key: string, label: string) => void
 }) {
   const rows = Object.entries(data)
     .filter(([, d]) => d.count > 0)
@@ -56,13 +62,18 @@ function DimensionCard({ title, data, labelMap }: {
 
   return (
     <div className="rounded-lg border border-border bg-card p-4">
-      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">{title}</p>
+      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">{title}</p>
+      {onDrilldown && <p className="text-[11px] text-muted-foreground/80 mb-3">Click a row to view trades</p>}
       <div className="space-y-3">
         {rows.map(([key, { count, pnl, win_rate }]) => {
           const label = labelMap?.[key] ?? key
           const pct = Math.round(win_rate * 100)
           return (
-            <div key={key}>
+            <div 
+              key={key}
+              onClick={() => onDrilldown?.(key, label)}
+              className={onDrilldown ? 'cursor-pointer hover:bg-accent/50 p-2 rounded transition-colors' : ''}
+            >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm">{label}</span>
                 <div className="flex items-center gap-3 text-xs font-mono">
@@ -308,6 +319,30 @@ export function DashboardPage() {
       barWidth: maxAbsPnl > 0 ? (Math.abs(d.pnl) / maxAbsPnl) * 100 : 0,
     }))
   }, [stats])
+
+  // User-defined strategy breakdown — sorted by |pnl|, top 8
+  const userStrategyChartData = useMemo(() => {
+    const map = new Map<string, { pnl: number; count: number; wins: number }>()
+    filteredTrades
+      .filter((t) => t.status === 'closed' && t.primary_strategy_name)
+      .forEach((t) => {
+        const key = t.primary_strategy_name!
+        const row = map.get(key) ?? { pnl: 0, count: 0, wins: 0 }
+        row.pnl += t.net_pnl ?? 0
+        row.count += 1
+        if ((t.net_pnl ?? 0) > 0) row.wins += 1
+        map.set(key, row)
+      })
+    return Array.from(map.entries())
+      .map(([name, { pnl, count, wins }]) => ({
+        name,
+        pnl,
+        count,
+        winRate: Math.round(count > 0 ? (wins / count) * 100 : 0),
+      }))
+      .sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl))
+      .slice(0, 8)
+  }, [filteredTrades])
 
   // Monthly P&L data (last 12 months)
   const monthlyData = useMemo(() => {
@@ -1220,9 +1255,10 @@ export function DashboardPage() {
           {/* P&L Activity Heatmap */}
           {canAccessHeatmap && (
             <div className="rounded-lg border border-border bg-card p-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
                 P&L Activity — Past 52 Weeks
               </p>
+              <p className="text-[11px] text-muted-foreground/80 mb-3">Click a day to open matching trades</p>
               <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
                 <div className="flex gap-[2px] sm:gap-[3px] min-w-max pb-1">
                   {heatmapData.weeks.map((week, wi) => (
@@ -1231,12 +1267,16 @@ export function DashboardPage() {
                         <div
                           key={day.date}
                           title={
-                            day.pnl != null && day.pnl !== 0
+                            day.pnl != null
                               ? `${day.date}: ${day.pnl >= 0 ? '+' : ''}${fmt.currency(day.pnl)}`
                               : day.date
                           }
-                          className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-sm cursor-default"
+                          className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-sm ${day.pnl != null ? 'cursor-pointer hover:ring-1 hover:ring-primary/60' : 'cursor-default'}`}
                           style={heatmapCellStyle(day.pnl, heatmapData.maxPnl)}
+                          onClick={() => {
+                            if (day.pnl == null) return
+                            navigate(`/trades?drilldown=heatmap&exitDate=${encodeURIComponent(day.date)}`)
+                          }}
                         />
                       ))}
                     </div>
@@ -1266,77 +1306,163 @@ export function DashboardPage() {
           )}
 
           {/* Performance breakdown */}
-          {(strategyChartData.length > 0 || assetTypeData.length > 0) && (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-              {/* By Strategy */}
-              {strategyChartData.length > 0 && (
-                <div className="rounded-lg border border-border bg-card p-4">
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">
-                    P&L by Strategy
-                  </p>
-                  <ResponsiveContainer
-                    width="100%"
-                    height={Math.max(160, strategyChartData.length * 34)}
-                  >
-                    <BarChart
-                      data={strategyChartData}
-                      layout="vertical"
-                      margin={{ left: 0, right: 16, top: 0, bottom: 0 }}
+          {(strategyChartData.length > 0 || userStrategyChartData.length > 0 || assetTypeData.length > 0) && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {/* By Tags */}
+                {strategyChartData.length > 0 && (
+                  <div className="rounded-lg border border-border bg-card p-4">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                      P&L by Tags
+                    </p>
+                    <p className="text-[11px] text-muted-foreground/80 mb-3">Click a bar to view trades</p>
+                    <ResponsiveContainer
+                      width="100%"
+                      height={Math.max(160, strategyChartData.length * 34)}
                     >
-                      <XAxis
-                        type="number"
-                        tick={{ fontSize: 10, fill: 'hsl(215 20% 50%)' }}
-                        tickLine={false}
-                        axisLine={false}
-                        tickFormatter={compactCurrency}
-                      />
-                      <YAxis
-                        type="category"
-                        dataKey="name"
-                        tick={{ fontSize: 11, fill: 'hsl(210 40% 80%)' }}
-                        tickLine={false}
-                        axisLine={false}
-                        width={112}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: 'hsl(222 47% 8%)',
-                          border: '1px solid hsl(222 47% 14%)',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          color: 'hsl(210 40% 96%)',
-                        }}
-                        labelStyle={{ color: 'hsl(210 40% 96%)' }}
-                        itemStyle={{ color: 'hsl(210 40% 96%)' }}
-                        formatter={(v: number, _name, props) => [
-                          `${fmt.currency(v)} · ${props.payload.count} trades · ${props.payload.winRate}% WR`,
-                          'P&L',
-                        ]}
-                      />
-                      <Bar dataKey="pnl" radius={[0, 3, 3, 0]}>
-                        {strategyChartData.map((entry, i) => (
-                          <Cell
-                            key={i}
-                            fill={entry.pnl >= 0 ? '#00d4a1' : '#ff4d6d'}
-                            fillOpacity={0.85}
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
+                      <BarChart
+                        data={strategyChartData}
+                        layout="vertical"
+                        margin={{ left: 0, right: 16, top: 0, bottom: 0 }}
+                      >
+                        <XAxis
+                          type="number"
+                          tick={{ fontSize: 10, fill: 'hsl(215 20% 50%)' }}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={compactCurrency}
+                        />
+                        <YAxis
+                          type="category"
+                          dataKey="name"
+                          tick={{ fontSize: 11, fill: 'hsl(210 40% 80%)' }}
+                          tickLine={false}
+                          axisLine={false}
+                          width={112}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: 'hsl(222 47% 8%)',
+                            border: '1px solid hsl(222 47% 14%)',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            color: 'hsl(210 40% 96%)',
+                          }}
+                          labelStyle={{ color: 'hsl(210 40% 96%)' }}
+                          itemStyle={{ color: 'hsl(210 40% 96%)' }}
+                          formatter={(v: number, _name, props) => [
+                            `${fmt.currency(v)} · ${props.payload.count} trades · ${props.payload.winRate}% WR`,
+                            'P&L',
+                          ]}
+                        />
+                        <Bar
+                          dataKey="pnl"
+                          radius={[0, 3, 3, 0]}
+                          onClick={(barData: any) => {
+                            const tagName = barData?.payload?.name
+                            if (!tagName) return
+                            navigate(`/trades?drilldown=tags&filterStrategy=${encodeURIComponent(tagName)}`)
+                          }}
+                        >
+                          {strategyChartData.map((entry, i) => (
+                            <Cell
+                              key={i}
+                              fill={entry.pnl >= 0 ? '#00d4a1' : '#ff4d6d'}
+                              fillOpacity={0.85}
+                              style={{ cursor: 'pointer' }}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* By Strategy (User-defined) */}
+                {userStrategyChartData.length > 0 && (
+                  <div className="rounded-lg border border-border bg-card p-4">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                      P&L by Strategy
+                    </p>
+                    <p className="text-[11px] text-muted-foreground/80 mb-3">Click a bar to view trades</p>
+                    <ResponsiveContainer
+                      width="100%"
+                      height={Math.max(160, userStrategyChartData.length * 34)}
+                    >
+                      <BarChart
+                        data={userStrategyChartData}
+                        layout="vertical"
+                        margin={{ left: 0, right: 16, top: 0, bottom: 0 }}
+                      >
+                        <XAxis
+                          type="number"
+                          tick={{ fontSize: 10, fill: 'hsl(215 20% 50%)' }}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={compactCurrency}
+                        />
+                        <YAxis
+                          type="category"
+                          dataKey="name"
+                          tick={{ fontSize: 11, fill: 'hsl(210 40% 80%)' }}
+                          tickLine={false}
+                          axisLine={false}
+                          width={112}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: 'hsl(222 47% 8%)',
+                            border: '1px solid hsl(222 47% 14%)',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            color: 'hsl(210 40% 96%)',
+                          }}
+                          labelStyle={{ color: 'hsl(210 40% 96%)' }}
+                          itemStyle={{ color: 'hsl(210 40% 96%)' }}
+                          formatter={(v: number, _name, props) => [
+                            `${fmt.currency(v)} · ${props.payload.count} trades · ${props.payload.winRate}% WR`,
+                            'P&L',
+                          ]}
+                        />
+                        <Bar
+                          dataKey="pnl"
+                          radius={[0, 3, 3, 0]}
+                          onClick={(barData: any) => {
+                            const strategyName = barData?.payload?.name
+                            if (!strategyName) return
+                            navigate(`/trades?drilldown=strategy&filterUserStrategy=${encodeURIComponent(strategyName)}`)
+                          }}
+                        >
+                          {userStrategyChartData.map((entry, i) => (
+                            <Cell
+                              key={i}
+                              fill={entry.pnl >= 0 ? '#00d4a1' : '#ff4d6d'}
+                              fillOpacity={0.85}
+                              style={{ cursor: 'pointer' }}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
 
               {/* By Asset Type */}
               {assetTypeData.length > 0 && (
                 <div className="rounded-lg border border-border bg-card p-4">
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
                     P&L by Asset Type
                   </p>
+                  <p className="text-[11px] text-muted-foreground/80 mb-3">Click a bar to view trades</p>
                   <div className="space-y-4">
                     {assetTypeData.map(({ type, label, count, pnl, barWidth }) => (
-                      <div key={type}>
-                        <div className="flex items-center justify-between mb-1.5">
+                      <div
+                        key={type}
+                        onClick={() => navigate(`/trades?drilldown=assetType&filterAsset=${encodeURIComponent(type)}`)}
+                        className="cursor-pointer group"
+                      >
+                        <div className="flex items-center justify-between mb-1.5 group-hover:text-primary transition-colors">
                           <span className="text-sm font-medium">{label}</span>
                           <div className="flex items-center gap-3">
                             <span className="text-xs text-muted-foreground font-mono">
@@ -1352,7 +1478,7 @@ export function DashboardPage() {
                             </span>
                           </div>
                         </div>
-                        <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
+                        <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden group-hover:ring-1 group-hover:ring-primary/40 transition-all">
                           <div
                             className="h-full rounded-full transition-all"
                             style={{
@@ -1383,11 +1509,35 @@ export function DashboardPage() {
 
               {dimensionalOpen && (
                 <div className="px-4 py-4 grid grid-cols-1 xl:grid-cols-2 gap-4 border-t border-border bg-muted/20">
-                  <DimensionCard title="Win Rate by Strategy" data={stats.by_strategy} labelMap={STRATEGY_TAG_LABELS} />
-                  <DimensionCard title="Win Rate by Sector" data={stats.by_sector} />
-                  <DimensionCard title="Win Rate by Timeframe" data={stats.by_timeframe} labelMap={TIMEFRAME_LABELS} />
-                  <DimensionCard title="Win Rate by Duration" data={stats.by_duration} labelMap={DURATION_LABELS} />
-                  <DimensionCard title="Win Rate by Market Condition" data={stats.by_market_condition} labelMap={MARKET_CONDITION_LABELS} />
+                  <DimensionCard
+                    title="Win Rate by Strategy"
+                    data={stats.by_strategy}
+                    labelMap={STRATEGY_TAG_LABELS}
+                    onDrilldown={(key) => navigate(`/trades?drilldown=strategy&filterStrategy=${encodeURIComponent(key)}`)}
+                  />
+                  <DimensionCard
+                    title="Win Rate by Sector"
+                    data={stats.by_sector}
+                    onDrilldown={(key) => navigate(`/trades?drilldown=sector&filterSector=${encodeURIComponent(key)}`)}
+                  />
+                  <DimensionCard
+                    title="Win Rate by Timeframe"
+                    data={stats.by_timeframe}
+                    labelMap={TIMEFRAME_LABELS}
+                    onDrilldown={(key) => navigate(`/trades?drilldown=timeframe&filterTimeframe=${encodeURIComponent(key)}`)}
+                  />
+                  <DimensionCard
+                    title="Win Rate by Duration"
+                    data={stats.by_duration}
+                    labelMap={DURATION_LABELS}
+                    onDrilldown={(key) => navigate(`/trades?drilldown=duration&filterDuration=${encodeURIComponent(key)}`)}
+                  />
+                  <DimensionCard
+                    title="Win Rate by Market Condition"
+                    data={stats.by_market_condition}
+                    labelMap={MARKET_CONDITION_LABELS}
+                    onDrilldown={(key) => navigate(`/trades?drilldown=marketCondition&filterMarketCondition=${encodeURIComponent(key)}`)}
+                  />
                 </div>
               )}
             </div>

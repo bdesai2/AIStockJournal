@@ -96,7 +96,14 @@ export function TradesPage() {
   const exitDateFilter = searchParams.get('exitDate')?.trim() ?? ''
   const exitDateFromFilter = searchParams.get('exitDateFrom')?.trim() ?? ''
   const exitDateToFilter = searchParams.get('exitDateTo')?.trim() ?? ''
-  const hasChartDrilldown = !!exitDateFilter || (!!exitDateFromFilter && !!exitDateToFilter)
+  const filterStrategy = searchParams.get('filterStrategy')?.trim() ?? ''
+  const filterUserStrategy = searchParams.get('filterUserStrategy')?.trim() ?? ''
+  const filterAsset = searchParams.get('filterAsset')?.trim() ?? ''
+  const filterSector = searchParams.get('filterSector')?.trim() ?? ''
+  const filterTimeframe = searchParams.get('filterTimeframe')?.trim() ?? ''
+  const filterDuration = searchParams.get('filterDuration')?.trim() ?? ''
+  const filterMarketCondition = searchParams.get('filterMarketCondition')?.trim() ?? ''
+  const hasChartDrilldown = !!exitDateFilter || (!!exitDateFromFilter && !!exitDateToFilter) || !!filterStrategy || !!filterUserStrategy || !!filterAsset || !!filterSector || !!filterTimeframe || !!filterDuration || !!filterMarketCondition
   const drilldownLabel =
     drilldown === 'daily'
       ? 'Daily P&L'
@@ -104,7 +111,23 @@ export function TradesPage() {
         ? 'Weekly P&L'
         : drilldown === 'monthly'
           ? 'Monthly P&L'
-          : 'Chart'
+          : drilldown === 'heatmap'
+            ? 'P&L Activity'
+            : drilldown === 'tags'
+              ? 'P&L by Tags'
+              : drilldown === 'strategy'
+                ? 'P&L by Strategy'
+                : drilldown === 'assetType'
+                  ? 'P&L by Asset Type'
+                  : drilldown === 'sector'
+                    ? 'Win Rate by Sector'
+                    : drilldown === 'timeframe'
+                      ? 'Win Rate by Timeframe'
+                      : drilldown === 'duration'
+                        ? 'Win Rate by Duration'
+                        : drilldown === 'marketCondition'
+                          ? 'Win Rate by Market Condition'
+                          : 'Chart'
 
   const [search, setSearch] = useState(() => getInitialFilters().search)
   const [assetFilter, setAssetFilter] = useState<AssetType | 'all'>(() => getInitialFilters().assetFilter)
@@ -151,6 +174,34 @@ export function TradesPage() {
         const day = t.exit_date.slice(0, 10)
         return day >= exitDateFromFilter && day <= exitDateToFilter
       })
+    }
+
+    if (filterStrategy) {
+      result = result.filter((t) => t.strategy_tags?.includes(filterStrategy as any))
+    }
+
+    if (filterUserStrategy) {
+      result = result.filter((t) => t.primary_strategy_name === filterUserStrategy)
+    }
+
+    if (filterAsset) {
+      result = result.filter((t) => t.asset_type === filterAsset)
+    }
+
+    if (filterSector) {
+      result = result.filter((t) => t.sector === filterSector)
+    }
+
+    if (filterTimeframe) {
+      result = result.filter((t) => t.timeframe === filterTimeframe)
+    }
+
+    if (filterDuration) {
+      result = result.filter((t) => t.duration === filterDuration)
+    }
+
+    if (filterMarketCondition) {
+      result = result.filter((t) => t.market_conditions === filterMarketCondition)
     }
 
     if (!hasChartDrilldown && search.trim()) {
@@ -209,6 +260,13 @@ export function TradesPage() {
     exitDateFilter,
     exitDateFromFilter,
     exitDateToFilter,
+    filterStrategy,
+    filterUserStrategy,
+    filterAsset,
+    filterSector,
+    filterTimeframe,
+    filterDuration,
+    filterMarketCondition,
     hasChartDrilldown,
     search,
     assetFilter,
@@ -276,6 +334,15 @@ export function TradesPage() {
               {!exitDateFilter && exitDateFromFilter && exitDateToFilter && (
                 <>Showing trades contributing to {drilldownLabel} range <span className="font-semibold">{exitDateFromFilter}</span> to <span className="font-semibold">{exitDateToFilter}</span></>
               )}
+              {filterStrategy && (
+                <>Showing trades with tag <span className="font-semibold">{filterStrategy}</span></>
+              )}
+              {filterUserStrategy && (
+                <>Showing trades with strategy <span className="font-semibold">{filterUserStrategy}</span></>
+              )}
+              {filterAsset && (
+                <>Showing {filterAsset} trades</>
+              )}
             </p>
             <button
               onClick={() => {
@@ -284,6 +351,9 @@ export function TradesPage() {
                 next.delete('exitDate')
                 next.delete('exitDateFrom')
                 next.delete('exitDateTo')
+                next.delete('filterStrategy')
+                next.delete('filterUserStrategy')
+                next.delete('filterAsset')
                 setSearchParams(next)
               }}
               className="text-xs font-medium text-primary hover:underline"

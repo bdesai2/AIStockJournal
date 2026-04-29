@@ -383,6 +383,8 @@ export function NewTradePage() {
       execution_quality: data.execution_quality as 1 | 2 | 3 | 4 | 5 | undefined,
       // Align form tags (strings) with the StrategyTag literal union
       strategy_tags: (data.strategy_tags ?? []) as StrategyTag[],
+      // Include primary strategy name from playbook selection
+      primary_strategy_name: data.primary_strategy_name || undefined,
       // Only include option_type for option trades
       option_type: data.asset_type === 'option' ? data.option_type : undefined,
     }
