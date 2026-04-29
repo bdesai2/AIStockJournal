@@ -25,12 +25,45 @@ interface Candle {
   volume: number
 }
 
+interface CandleResponse {
+  candles?: Candle[]
+  error?: string
+}
+
 function getUserTimezone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone
   } catch {
     return 'Etc/UTC'
   }
+}
+
+function getBaseApiUrl(): string {
+  return import.meta.env.VITE_API_BASE_URL || ''
+}
+
+async function fetchCandles(
+  ticker: string,
+  from: number,
+  to: number,
+  resolution: string
+): Promise<Candle[]> {
+  const baseUrl = getBaseApiUrl()
+  const url = `${baseUrl}/api/yahoo/candles/${encodeURIComponent(ticker)}?from=${from}&to=${to}&resolution=${resolution}`
+
+  const res = await fetch(url)
+  let payload: CandleResponse = {}
+  try {
+    payload = await res.json()
+  } catch {
+    payload = {}
+  }
+
+  if (!res.ok) {
+    throw new Error(payload.error || `Price API request failed (${res.status})`)
+  }
+
+  return Array.isArray(payload.candles) ? payload.candles : []
 }
 
 /** Select resolution + lookback based on trade duration */
@@ -65,6 +98,11 @@ export function TradeChart({ trade }: TradeChartProps) {
   const isLong = trade.direction === 'long'
   const userTimezone = getUserTimezone()
   const { resolution, lookbackDays, label } = getResolutionConfig(trade)
+  const [resolvedLabel, setResolvedLabel] = useState('')
+
+  useEffect(() => {
+    setResolvedLabel(label)
+  }, [label])
 
   useEffect(() => {
     if (!chartContainerRef.current) return
@@ -135,15 +173,56 @@ export function TradeChart({ trade }: TradeChartProps) {
       ? trade.ticker.replace(/\d{6}[CP]\d+/, '') // strip option suffix if any
       : trade.ticker
 
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
-    fetch(`${baseUrl}/api/yahoo/candles/${encodeURIComponent(ticker)}?from=${fromTs}&to=${toTs}&resolution=${resolution}`)
-      .then(r => r.json())
-      .then(({ candles }: { candles: Candle[] }) => {
+    const fallbackFromTs = entryTs - 365 * 24 * 60 * 60
+    const nowTs = Math.floor(Date.now() / 1000)
+    const attempts: Array<{ resolution: string; from: number; to: number; label: string }> = [
+      { resolution, from: fromTs, to: toTs, label },
+    ]
+
+    if (resolution !== '60') {
+      attempts.push({
+        resolution: '60',
+        from: entryTs - 14 * 24 * 60 * 60,
+        to: Math.max(toTs, nowTs),
+        label: '1-hour',
+      })
+    }
+
+    if (resolution !== 'D') {
+      attempts.push({
+        resolution: 'D',
+        from: fallbackFromTs,
+        to: Math.max(toTs, nowTs),
+        label: 'Daily',
+      })
+    }
+
+    const run = async () => {
+      try {
+        let candles: Candle[] = []
+        let usedLabel = label
+        let lastApiError: string | null = null
+
+        for (const attempt of attempts) {
+          try {
+            const result = await fetchCandles(ticker, attempt.from, attempt.to, attempt.resolution)
+            if (result.length > 0) {
+              candles = result
+              usedLabel = attempt.label
+              break
+            }
+          } catch (err) {
+            lastApiError = err instanceof Error ? err.message : 'Failed to fetch candles'
+          }
+        }
+
         if (!candles?.length) {
-          setError('No price history available for this ticker/timeframe.')
+          setError(lastApiError || 'No price history available for this ticker/timeframe.')
           setLoading(false)
           return
         }
+
+        setResolvedLabel(usedLabel)
 
         // lightweight-charts v5 expects { time (unix seconds), open, high, low, close }
         const data = candles.map(c => ({
@@ -216,12 +295,15 @@ export function TradeChart({ trade }: TradeChartProps) {
         // â”€â”€ Fit view to trade window + some context â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         chart.timeScale().fitContent()
         setLoading(false)
-      })
-      .catch(err => {
+      } catch (err) {
         console.warn('[TradeChart] Fetch error:', err)
-        setError('Failed to load chart data.')
+        const message = err instanceof Error ? err.message : 'Failed to load chart data.'
+        setError(message)
         setLoading(false)
-      })
+      }
+    }
+
+    run()
 
     return () => {
       resizeObserver.disconnect()
@@ -249,7 +331,7 @@ export function TradeChart({ trade }: TradeChartProps) {
             {isLong ? 'LONG' : 'SHORT'}
           </div>
           <span className="text-[10px] font-mono text-muted-foreground bg-muted/30 px-2 py-1 rounded">
-            {label}
+            {resolvedLabel}
           </span>
           <span className="hidden sm:inline text-[10px] font-mono text-muted-foreground bg-muted/30 px-2 py-1 rounded">
             {userTimezone}
@@ -311,7 +393,7 @@ export function TradeChart({ trade }: TradeChartProps) {
         <div className="px-4 py-2 text-[10px] text-muted-foreground bg-muted/20 border-t border-border/50 flex justify-between items-center">
           <span>
             {candleCount} candles Â·{' '}
-            <span className="text-foreground font-mono">{label}</span> Â·{' '}
+            <span className="text-foreground font-mono">{resolvedLabel}</span> Â·{' '}
             Duration:{' '}
             <span className="font-mono text-foreground">
               {trade.exit_date

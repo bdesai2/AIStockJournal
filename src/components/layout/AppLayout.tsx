@@ -16,6 +16,12 @@ import {
 } from 'lucide-react'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { useInstallPrompt } from '@/hooks/useInstallPrompt'
+import {
+  useTradeRealtimeSubscriptions,
+  useExecutionRealtimeSubscriptions,
+  useScreenshotRealtimeSubscriptions,
+  useJournalRealtimeSubscriptions,
+} from '@/hooks/useTradeRealtimeSubscriptions'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { auth } from '@/lib/supabase'
@@ -95,6 +101,12 @@ export function AppLayout() {
       fetchSubscription(user.id)
     }
   }, [user?.id, selectedAccountId, trades.length, fetchTrades, fetchSubscription])
+
+  // Set up real-time subscriptions for trades, executions, screenshots, and journals
+  useTradeRealtimeSubscriptions()
+  useExecutionRealtimeSubscriptions()
+  useScreenshotRealtimeSubscriptions()
+  useJournalRealtimeSubscriptions()
 
   const stats = useMemo(() => aggregateStats(trades), [trades])
 
