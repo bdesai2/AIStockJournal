@@ -327,6 +327,34 @@ export function DashboardPage() {
       })
   }, [filteredTrades])
 
+  // Weekly P&L data (last 16 weeks)
+  const weeklyData = useMemo(() => {
+    const map = new Map<string, { pnl: number; count: number; wins: number }>()
+    filteredTrades
+      .filter((t) => t.status === 'closed' && t.exit_date)
+      .forEach((t) => {
+        const d = new Date(t.exit_date!)
+        // ISO week: Monday-based
+        const day = d.getDay() === 0 ? 6 : d.getDay() - 1 // 0=Mon … 6=Sun
+        const monday = new Date(d)
+        monday.setDate(d.getDate() - day)
+        const key = monday.toISOString().slice(0, 10)
+        const row = map.get(key) ?? { pnl: 0, count: 0, wins: 0 }
+        row.pnl += t.net_pnl ?? 0
+        row.count += 1
+        if ((t.net_pnl ?? 0) > 0) row.wins += 1
+        map.set(key, row)
+      })
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-16)
+      .map(([key, { pnl, count, wins }]) => {
+        const d = new Date(key)
+        const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        return { key, label, pnl, count, winRate: count > 0 ? Math.round((wins / count) * 100) : 0 }
+      })
+  }, [filteredTrades])
+
   // Quarterly P&L data (last 8 quarters)
   const quarterlyData = useMemo(() => {
     const map = new Map<string, { pnl: number; count: number; wins: number }>()
@@ -1359,6 +1387,30 @@ export function DashboardPage() {
                           />
                           <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
                             {monthlyData.map((entry, i) => (
+                              <Cell key={i} fill={entry.pnl >= 0 ? '#00d4a1' : '#ff4d6d'} fillOpacity={0.85} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+
+                  {/* Weekly P&L — full-width BarChart */}
+                  {weeklyData.length > 0 && (
+                    <div className="xl:col-span-2 rounded-lg border border-border bg-card p-4">
+                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">Weekly P&L</p>
+                      <ResponsiveContainer width="100%" height={180}>
+                        <BarChart data={weeklyData} barSize={16}>
+                          <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(215 20% 50%)' }} tickLine={false} axisLine={false} />
+                          <YAxis tick={{ fontSize: 10, fill: 'hsl(215 20% 50%)' }} tickLine={false} axisLine={false} tickFormatter={compactCurrency} />
+                          <Tooltip
+                            contentStyle={{ background: 'hsl(222 47% 8%)', border: '1px solid hsl(222 47% 14%)', borderRadius: '6px', fontSize: '12px' }}
+                            formatter={(v: number, _n, props) => [
+                              `${fmt.currency(v)} · ${props.payload.count} trades · ${props.payload.winRate}% WR`, 'P&L'
+                            ]}
+                          />
+                          <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
+                            {weeklyData.map((entry, i) => (
                               <Cell key={i} fill={entry.pnl >= 0 ? '#00d4a1' : '#ff4d6d'} fillOpacity={0.85} />
                             ))}
                           </Bar>
