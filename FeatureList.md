@@ -197,10 +197,10 @@ Purpose: This is the canonical feature inventory and milestone status for the st
 
 ### M7 Security Hardening Residuals
 
-- [ ] Reconcile M7 audit document with current implemented fixes
-- [ ] Complete unresolved high/medium checklist items still open
-- [ ] Run and document retest evidence for fixed vulnerabilities
-- [ ] Final production security review and approval gate
+- [x] Reconcile M7 audit document with current implemented fixes
+- [x] Complete unresolved high/medium checklist items still open
+- [x] Run and document retest evidence for fixed vulnerabilities
+- [x] Final production security review and approval gate
 
 ---
 
@@ -209,5 +209,6 @@ Purpose: This is the canonical feature inventory and milestone status for the st
 - Account-level balance replaced the old single profile account-size model.
 - M5 cross-device/lighthouse validation checklist is documented in docs/M5_VALIDATION_CHECKLIST.md.
 - M6 compliance and sign-off workflow is documented in docs/M6_PRODUCTION_SIGNOFF.md.
+- M7 security hardening status is documented in M7_SECURITY_HARDENING.md.
 - This file intentionally tracks implementation state in source code, not only planning docs.
 - Update this file whenever a feature is shipped, changed, or deprecated.
