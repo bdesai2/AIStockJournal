@@ -18,6 +18,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { registerAiRoutes } from './lib/aiRoutes.mjs'
 import { registerFinnhubProxyRoutes } from './lib/finnhubProxy.mjs'
 import { registerStripeRoutes } from './lib/stripeRoutes.mjs'
+import { registerPrivacyRoutes } from './lib/privacyRoutes.mjs'
 
 // ─── Initialize Express & Configuration ────────────────────────────────────
 
@@ -111,6 +112,7 @@ const AI_MODEL = 'claude-sonnet-4-6' // Supports prompt caching
 registerAiRoutes(app, anthropic, AI_MODEL)
 registerFinnhubProxyRoutes(app)
 registerStripeRoutes(app)
+registerPrivacyRoutes(app)
 
 // ─── Global error handler ─────────────────────────────────────────────────
 // Must be 4-argument so Express recognises it as an error handler.
@@ -133,6 +135,7 @@ app.listen(PORT, () => {
     console.log(`  - AI routes: /api/ai/grade-trade, /api/ai/setup-check, /api/ai/trade-analysis, /api/ai/potential-trade, /api/ai/weekly-digest`)
     console.log(`  - Stock data (Finnhub): /api/yahoo/quote/:ticker, /api/yahoo/sector/:ticker`)
     console.log(`  - Stripe routes: /api/stripe/checkout-session, /api/stripe/portal-session, /api/stripe/cancel-subscription, /api/stripe/start-trial, /api/stripe/subscription-details, /api/stripe/webhook`)
+    console.log(`  - Privacy routes: /api/privacy/export-json, /api/privacy/export-csv, /api/privacy/delete-account`)
   } else {
     console.log(`Server started on port ${PORT}`)
   }

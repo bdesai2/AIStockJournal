@@ -1,151 +1,115 @@
 import { Loader2, Download, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
-import { useTradeStore } from '@/store/tradeStore'
-import { db } from '@/lib/supabase'
-import { logAuditEvent } from '@/lib/auditLog'
+import { supabase } from '@/lib/supabase'
 import { AuditLogViewer } from './AuditLogViewer'
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+
+type PrivacyExportJsonResponse = {
+  fileName: string
+  payload: unknown
+}
+
+type PrivacyExportCsvResponse = {
+  fileName: string
+  csv: string
+}
+
+async function postPrivacy<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
+  let { data: { session } } = await supabase.auth.getSession()
+
+  if (session?.expires_at && session.expires_at * 1000 < Date.now()) {
+    const { data } = await supabase.auth.refreshSession()
+    session = data.session
+  }
+
+  if (!session?.access_token) {
+    throw new Error('Not authenticated. Please sign in again.')
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify(body),
+  })
+
+  const data = await res.json().catch(() => ({})) as { error?: string }
+  if (!res.ok) {
+    throw new Error(data.error || `HTTP ${res.status}`)
+  }
+
+  return data as T
+}
+
+function downloadBlob(content: BlobPart, mimeType: string, fileName: string) {
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
 
 export function PrivacySettingsSection() {
   const { user } = useAuthStore()
-  const { trades } = useTradeStore()
   const [exporting, setExporting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [deleteText, setDeleteText] = useState('')
 
-  // Export user data as JSON
   const handleExportJSON = async () => {
     if (!user?.id) return
     setExporting(true)
 
     try {
-      // Fetch all user data
-      const profile = await db.profiles().select('*').eq('id', user.id).single()
-      const accounts = await db.accounts().select('*').eq('user_id', user.id)
-      const journals = await db.journals().select('*').eq('user_id', user.id)
-
-      const exportData = {
-        exportDate: new Date().toISOString(),
-        profile: profile.data,
-        accounts: accounts.data,
-        trades,
-        journals: journals.data,
-      }
-
-      // Log audit event
-      await logAuditEvent(user.id, 'EXPORT_DATA', {
-        format: 'JSON',
-        recordCount: {
-          trades: trades.length,
-          accounts: accounts.data?.length || 0,
-          journals: journals.data?.length || 0,
-        },
-      })
-
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-        type: 'application/json',
-      })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `stock-journal-export-${new Date().toISOString().split('T')[0]}.json`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+      const data = await postPrivacy<PrivacyExportJsonResponse>('/api/privacy/export-json')
+      downloadBlob(JSON.stringify(data.payload, null, 2), 'application/json', data.fileName)
     } catch (error) {
-      console.error('Export error:', error)
-      alert('Failed to export data')
+      console.error('Export JSON error:', error)
+      alert(error instanceof Error ? error.message : 'Failed to export JSON data')
     } finally {
       setExporting(false)
     }
   }
 
-  // Export user data as CSV (trades only)
-  const handleExportCSV = () => {
-    if (trades.length === 0) {
-      alert('No trades to export')
-      return
+  const handleExportCSV = async () => {
+    if (!user?.id) return
+    setExporting(true)
+
+    try {
+      const data = await postPrivacy<PrivacyExportCsvResponse>('/api/privacy/export-csv')
+      downloadBlob(data.csv, 'text/csv', data.fileName)
+    } catch (error) {
+      console.error('Export CSV error:', error)
+      alert(error instanceof Error ? error.message : 'Failed to export CSV data')
+    } finally {
+      setExporting(false)
     }
-
-    // Convert trades to CSV
-    const headers = [
-      'Ticker',
-      'Asset Type',
-      'Direction',
-      'Entry Price',
-      'Exit Price',
-      'Quantity',
-      'Entry Date',
-      'Exit Date',
-      'P&L',
-      'Risk %',
-      'Setup Notes',
-      'Status',
-    ]
-
-    const rows = trades.map((trade) => [
-      trade.ticker,
-      trade.asset_type,
-      trade.direction,
-      trade.entry_price,
-      trade.exit_price || '',
-      trade.quantity,
-      trade.entry_date,
-      trade.exit_date || '',
-      trade.net_pnl || '',
-      trade.risk_percent || '',
-      `"${(trade.setup_notes || '').replace(/"/g, '""')}"`,
-      trade.status,
-    ])
-
-    const csv = [headers, ...rows].map((row) => row.join(',')).join('\n')
-
-    // Log audit event
-    if (user?.id) {
-      logAuditEvent(user.id, 'EXPORT_DATA', {
-        format: 'CSV',
-        recordCount: trades.length,
-      }).catch(console.error)
-    }
-
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `stock-journal-trades-${new Date().toISOString().split('T')[0]}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
   }
 
-  // Delete account and all associated data
   const handleDeleteAccount = async () => {
     if (!user?.id) return
     setDeleting(true)
 
     try {
-      // Log audit event before deletion
-      await logAuditEvent(user.id, 'DELETE_ACCOUNT', {
-        timestamp: new Date().toISOString(),
-      })
-
-      // Supabase cascading delete will handle trades & journals via foreign keys
-      await db.accounts().delete().eq('user_id', user.id)
-
-      // Delete user profile
-      await db.profiles().delete().eq('id', user.id)
-
-      // Sign out user
+      await postPrivacy('/api/privacy/delete-account', { confirmationText: deleteText })
+      await supabase.auth.signOut()
       alert('Your account and all data have been permanently deleted.')
       window.location.href = '/auth/login'
     } catch (error) {
       console.error('Delete error:', error)
-      alert('Failed to delete account. Please try again or contact support.')
+      alert(error instanceof Error ? error.message : 'Failed to delete account. Please try again later.')
     } finally {
       setDeleting(false)
       setDeleteConfirm(false)
+      setDeleteText('')
     }
   }
 
@@ -178,7 +142,7 @@ export function PrivacySettingsSection() {
             </button>
             <button
               onClick={handleExportCSV}
-              disabled={exporting || trades.length === 0}
+              disabled={exporting}
               className="flex items-center gap-2 bg-secondary text-secondary-foreground rounded-md px-4 py-2 text-sm font-medium hover:bg-secondary/90 transition-colors disabled:opacity-50"
             >
               <Download className="w-4 h-4" />
@@ -230,20 +194,31 @@ export function PrivacySettingsSection() {
                 <li>✓ All journal entries and notes</li>
                 <li>✓ All preferences and settings</li>
               </ul>
-              <p className="text-xs text-muted-foreground italic">
-                You have 30 days to request a backup before permanent deletion.
+              <p className="text-xs text-muted-foreground">
+                Type <span className="font-semibold">DELETE</span> to confirm permanent removal.
               </p>
+              <input
+                type="text"
+                value={deleteText}
+                onChange={(e) => setDeleteText(e.target.value)}
+                placeholder="Type DELETE"
+                disabled={deleting}
+                className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm"
+              />
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={handleDeleteAccount}
-                  disabled={deleting}
+                  disabled={deleting || deleteText !== 'DELETE'}
                   className="flex-1 flex items-center justify-center gap-2 bg-destructive text-destructive-foreground rounded-md px-3 py-2 text-sm font-medium hover:bg-destructive/90 transition-colors disabled:opacity-50"
                 >
                   {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                   Yes, Delete Everything
                 </button>
                 <button
-                  onClick={() => setDeleteConfirm(false)}
+                  onClick={() => {
+                    setDeleteConfirm(false)
+                    setDeleteText('')
+                  }}
                   disabled={deleting}
                   className="flex-1 bg-muted text-muted-foreground rounded-md px-3 py-2 text-sm font-medium hover:bg-muted/80 transition-colors"
                 >

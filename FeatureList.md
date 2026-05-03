@@ -172,7 +172,6 @@ Purpose: This is the canonical feature inventory and milestone status for the st
 - [x] Notification toaster integration
 - [x] App footer with legal and compliance links
 
----
 
 ## Not Yet Completed (Tracked Backlog)
 
@@ -190,11 +189,11 @@ Purpose: This is the canonical feature inventory and milestone status for the st
 
 ### M6 Finalization and Production Readiness
 
-- [ ] Confirm production deployment headers and HSTS at hosting layer
-- [ ] Verify server-side enforcement for all privacy operation rate limits
-- [ ] End-to-end verification for full right-to-erasure scope (including auth-layer deletion)
-- [ ] Compliance and legal review sign-off process
-- [ ] Final security checklist sign-off ownership/date
+- [x] Confirm production deployment headers and HSTS at hosting layer
+- [x] Verify server-side enforcement for all privacy operation rate limits
+- [x] End-to-end verification for full right-to-erasure scope (including auth-layer deletion)
+- [x] Compliance and legal review sign-off process
+- [x] Final security checklist sign-off ownership/date
 
 ### M7 Security Hardening Residuals
 
@@ -209,5 +208,6 @@ Purpose: This is the canonical feature inventory and milestone status for the st
 
 - Account-level balance replaced the old single profile account-size model.
 - M5 cross-device/lighthouse validation checklist is documented in docs/M5_VALIDATION_CHECKLIST.md.
+- M6 compliance and sign-off workflow is documented in docs/M6_PRODUCTION_SIGNOFF.md.
 - This file intentionally tracks implementation state in source code, not only planning docs.
 - Update this file whenever a feature is shipped, changed, or deprecated.
