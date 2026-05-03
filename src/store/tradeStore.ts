@@ -3,6 +3,13 @@ import type { Trade, TradeExecution, CreateTradeInput, UpdateTradeInput, AiTrade
 import { db, storage } from '@/lib/supabase'
 import { calcExecutionsSummary } from '@/lib/tradeUtils'
 import { useNotificationStore } from '@/store/notificationStore'
+import {
+  enqueueOfflineMutation,
+  getOfflineQueue,
+  markOfflineMutationFailed,
+  removeOfflineMutation,
+} from '@/lib/offlineQueue'
+import { loadTradesCache, saveTradesCache } from '@/lib/offlineCache'
 
 interface TradeState {
   trades: Trade[]
@@ -26,6 +33,7 @@ interface TradeState {
     patch: Partial<Omit<TradeExecution, 'id' | 'trade_id' | 'user_id' | 'created_at'>>
   ) => Promise<boolean>
   deleteExecution: (executionId: string, tradeId: string) => Promise<boolean>
+  flushQueuedMutations: (userId: string, accountId: string) => Promise<number>
   clearError: () => void
 }
 
@@ -46,6 +54,11 @@ function applyExecutions(trade: Trade): Trade {
   }
 }
 
+function shouldQueueMutation(errorMessage: string): boolean {
+  if (!navigator.onLine) return true
+  return /network|offline|fetch|timeout|failed to fetch/i.test(errorMessage)
+}
+
 const TRADE_SELECT = `*, screenshots:trade_screenshots(*), executions:trade_executions(*)`
 
 export const useTradeStore = create<TradeState>((set, get) => ({
@@ -64,7 +77,16 @@ export const useTradeStore = create<TradeState>((set, get) => ({
       .order('entry_date', { ascending: false })
 
     if (error) {
-      set({ error: error.message, loading: false })
+      const cached = await loadTradesCache(userId, accountId).catch(() => null)
+      if (cached?.length) {
+        set({
+          trades: cached,
+          error: `Offline mode: showing cached trades (${cached.length})`,
+          loading: false,
+        })
+      } else {
+        set({ error: error.message, loading: false })
+      }
       return
     }
 
@@ -100,6 +122,7 @@ export const useTradeStore = create<TradeState>((set, get) => ({
     }
 
     set({ trades, loading: false })
+    void saveTradesCache(userId, accountId, trades)
   },
 
   createTrade: async (input) => {
@@ -114,6 +137,20 @@ export const useTradeStore = create<TradeState>((set, get) => ({
 
     if (error) {
       const errorMsg = error.message || 'Failed to create trade'
+
+      if (shouldQueueMutation(errorMsg)) {
+        enqueueOfflineMutation('trade', 'create', input)
+        set({ loading: false, error: 'Offline: trade queued and will sync when online.' })
+        const { push } = useNotificationStore.getState()
+        push({
+          kind: 'error',
+          variant: 'warning',
+          title: 'Trade queued offline',
+          message: 'We will create this trade automatically once connection is restored.',
+        })
+        return null
+      }
+
       set({ error: errorMsg, loading: false })
 
       // Notify user and suggest re-login if auth error
@@ -209,6 +246,21 @@ export const useTradeStore = create<TradeState>((set, get) => ({
 
     if (error) {
       const errorMsg = error.message || 'Failed to update trade'
+
+      if (shouldQueueMutation(errorMsg)) {
+        enqueueOfflineMutation('trade', 'update', { id, input })
+        set((state) => ({
+          trades: state.trades.map((t) => (t.id === id ? ({ ...t, ...input } as Trade) : t)),
+          selectedTrade:
+            state.selectedTrade?.id === id
+              ? ({ ...state.selectedTrade, ...input } as Trade)
+              : state.selectedTrade,
+          loading: false,
+          error: 'Offline: update queued and will sync when online.',
+        }))
+        return get().trades.find((t) => t.id === id) ?? null
+      }
+
       set({ error: errorMsg, loading: false })
 
       // Notify user and suggest re-login if auth error
@@ -256,7 +308,19 @@ export const useTradeStore = create<TradeState>((set, get) => ({
 
     const { error } = await db.trades().delete().eq('id', id)
     if (error) {
-      set({ error: error.message })
+      const errorMsg = error.message || 'Failed to delete trade'
+
+      if (shouldQueueMutation(errorMsg)) {
+        enqueueOfflineMutation('trade', 'delete', { id })
+        set((state) => ({
+          trades: state.trades.filter((t) => t.id !== id),
+          selectedTrade: state.selectedTrade?.id === id ? null : state.selectedTrade,
+          error: 'Offline: deletion queued and will sync when online.',
+        }))
+        return true
+      }
+
+      set({ error: errorMsg })
       return false
     }
 
@@ -455,6 +519,61 @@ export const useTradeStore = create<TradeState>((set, get) => ({
     })
 
     return true
+  },
+
+  flushQueuedMutations: async (userId, accountId) => {
+    const queued = getOfflineQueue('trade')
+    if (queued.length === 0) return 0
+
+    let processed = 0
+
+    for (const item of queued) {
+      try {
+        if (item.action === 'create') {
+          const payload = item.payload as CreateTradeInput & {
+            user_id: string
+            account_id: string
+          }
+
+          await db
+            .trades()
+            .insert({ ...payload, has_executions: true })
+        }
+
+        if (item.action === 'update') {
+          const payload = item.payload as { id: string; input: UpdateTradeInput | AiTradeUpdate }
+          await db
+            .trades()
+            .update({ ...payload.input, updated_at: new Date().toISOString() })
+            .eq('id', payload.id)
+        }
+
+        if (item.action === 'delete') {
+          const payload = item.payload as { id: string }
+          await db.trades().delete().eq('id', payload.id)
+        }
+
+        removeOfflineMutation(item.id)
+        processed += 1
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown sync error'
+        markOfflineMutationFailed(item, message)
+        // Keep mutation in queue; it will retry on next reconnect
+      }
+    }
+
+    if (processed > 0) {
+      await get().fetchTrades(userId, accountId)
+      const { push } = useNotificationStore.getState()
+      push({
+        kind: 'trade_updated',
+        variant: 'success',
+        title: 'Offline changes synced',
+        message: `${processed} queued trade change${processed === 1 ? '' : 's'} synchronized.`,
+      })
+    }
+
+    return processed
   },
 
   clearError: () => set({ error: null }),

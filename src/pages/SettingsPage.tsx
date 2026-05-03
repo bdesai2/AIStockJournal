@@ -78,19 +78,19 @@ export function SettingsPage() {
               <User className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Profile</span>
             </div>
-            <div className="p-4 grid grid-cols-2 gap-4">
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-foreground/70">Display Name</label>
-                <input {...register('display_name')} className={inputClass} />
+                <input {...register('display_name')} className={inputClass} autoCapitalize="words" autoCorrect="off" spellCheck={false} />
                 {errors.display_name && <p className="text-destructive text-xs">{errors.display_name.message}</p>}
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-foreground/70">Broker</label>
-                <input {...register('broker')} placeholder="IBKR, TD Ameritrade..." className={inputClass} />
+                <input {...register('broker')} placeholder="IBKR, TD Ameritrade..." className={inputClass} autoCapitalize="words" autoCorrect="off" spellCheck={false} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-foreground/70">Default Risk %</label>
-                <input {...register('default_risk_percent')} type="number" step="0.1" placeholder="1.5" className={inputClass} />
+                <input {...register('default_risk_percent')} type="number" step="0.1" inputMode="decimal" placeholder="1.5" className={inputClass} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-foreground/70">Timezone</label>

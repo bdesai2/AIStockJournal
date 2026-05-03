@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { version } from '../../../package.json'
 import {
   LayoutDashboard,
@@ -12,10 +12,12 @@ import {
   Bell,
   Zap,
   WifiOff,
+  Wifi,
   MonitorDown,
 } from 'lucide-react'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { useInstallPrompt } from '@/hooks/useInstallPrompt'
+import { useRealtimeIndicator } from '@/hooks/useRealtimeStatus'
 import {
   useTradeRealtimeSubscriptions,
   useExecutionRealtimeSubscriptions,
@@ -24,8 +26,15 @@ import {
 } from '@/hooks/useTradeRealtimeSubscriptions'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
+import { useJournalStore } from '@/store/journalStore'
 import { auth } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
+import {
+  OFFLINE_QUEUE_UPDATED_EVENT,
+  getOfflineQueueCount,
+  getOfflineSyncFailureCount,
+  getOfflineSyncFailureSummary,
+} from '@/lib/offlineQueue'
 import { NotificationToaster } from '@/components/notifications/NotificationToaster'
 import { AccountBalanceCard } from '@/components/account/AccountBalanceCard'
 import { AccountSelector } from '@/components/navigation/AccountSelector'
@@ -50,16 +59,66 @@ const MOBILE_NAV_ITEMS = [
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 
+function getBreadcrumbs(pathname: string): Array<{ to: string; label: string }> {
+  const parts = pathname.split('/').filter(Boolean)
+  if (parts.length === 0) return [{ to: '/dashboard', label: 'Dashboard' }]
+
+  const crumbs: Array<{ to: string; label: string }> = []
+  let running = ''
+
+  for (let i = 0; i < parts.length; i += 1) {
+    const part = parts[i]
+    running += `/${part}`
+
+    let label = part
+    if (part === 'dashboard') label = 'Dashboard'
+    if (part === 'trades') label = 'Trades'
+    if (part === 'new') label = 'New Trade'
+    if (part === 'journal') label = 'Journal'
+    if (part === 'strategies') label = 'Strategies'
+    if (part === 'settings') label = 'Settings'
+    if (part === 'pricing') label = 'Pricing'
+    if (part === 'admin') label = 'Admin'
+    if (part === 'privacy') label = 'Privacy'
+    if (part === 'terms') label = 'Terms'
+    if (part === 'disclaimers') label = 'Disclaimers'
+    if (part === 'cookie-policy') label = 'Cookie Policy'
+
+    if (parts[i - 1] === 'trades' && part !== 'new' && part !== 'edit') {
+      label = `Trade ${part.slice(0, 6)}`
+    }
+    if (part === 'edit') label = 'Edit'
+
+    crumbs.push({ to: running, label })
+  }
+
+  return crumbs
+}
+
 export function AppLayout() {
   const { user, profile, selectedAccountId, subscription, fetchSubscription } = useAuthStore()
-  const { trades, fetchTrades } = useTradeStore()
+  const { trades, fetchTrades, flushQueuedMutations } = useTradeStore()
+  const { flushQueuedMutations: flushQueuedJournals } = useJournalStore()
+  const location = useLocation()
   const navigate = useNavigate()
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [accountsModalOpen, setAccountsModalOpen] = useState(false)
+  const [showInstallHelp, setShowInstallHelp] = useState(false)
+  const [pendingSyncCount, setPendingSyncCount] = useState(() => getOfflineQueueCount())
+  const [failedSyncCount, setFailedSyncCount] = useState(() => getOfflineSyncFailureCount())
+  const [failedSyncSummary, setFailedSyncSummary] = useState<string | null>(() => getOfflineSyncFailureSummary())
+  const lastQueueFlushRef = useRef(0)
   const notifications = useNotificationStore((s) => s.notifications)
   const isOnline = useOnlineStatus()
-  const { canInstall, install } = useInstallPrompt()
+  const { canInstall, isInstalled, installHelpText, install } = useInstallPrompt()
+  const realtime = useRealtimeIndicator()
   const clearAllNotifications = useNotificationStore((s) => s.clearAll)
+
+  const handleRetrySync = () => {
+    if (!isOnline || !user?.id || !selectedAccountId) return
+    void flushQueuedMutations(user.id, selectedAccountId)
+    void flushQueuedJournals()
+  }
 
   const handleNotificationClick = (n: Notification) => {
     setNotificationsOpen(false)
@@ -109,6 +168,46 @@ export function AppLayout() {
   useJournalRealtimeSubscriptions()
 
   const stats = useMemo(() => aggregateStats(trades), [trades])
+  const breadcrumbs = useMemo(() => getBreadcrumbs(location.pathname), [location.pathname])
+
+  useEffect(() => {
+    if (!isOnline || !user?.id || !selectedAccountId) return
+
+    const now = Date.now()
+    if (now - lastQueueFlushRef.current < 10_000) return
+    lastQueueFlushRef.current = now
+
+    void flushQueuedMutations(user.id, selectedAccountId)
+    void flushQueuedJournals()
+  }, [isOnline, user?.id, selectedAccountId, flushQueuedMutations, flushQueuedJournals])
+
+  useEffect(() => {
+    const refreshPendingCount = () => setPendingSyncCount(getOfflineQueueCount())
+    const refreshFailures = () => {
+      setFailedSyncCount(getOfflineSyncFailureCount())
+      setFailedSyncSummary(getOfflineSyncFailureSummary())
+    }
+    const refreshAllSyncState = () => {
+      refreshPendingCount()
+      refreshFailures()
+    }
+
+    const onQueueUpdated = () => refreshAllSyncState()
+    const onOnline = () => refreshAllSyncState()
+    const onOffline = () => refreshAllSyncState()
+
+    refreshAllSyncState()
+
+    window.addEventListener(OFFLINE_QUEUE_UPDATED_EVENT, onQueueUpdated as EventListener)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+
+    return () => {
+      window.removeEventListener(OFFLINE_QUEUE_UPDATED_EVENT, onQueueUpdated as EventListener)
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+  }, [])
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -121,7 +220,7 @@ export function AppLayout() {
           </div>
           <div>
             <p className="font-display text-lg tracking-wider leading-none">TRADE REFLECTION</p>
-            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">v{version} · M6.5</p>
+            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">v{version}</p>
           </div>
         </div>
 
@@ -247,9 +346,59 @@ export function AppLayout() {
             <AccountSelector onManageClick={() => setAccountsModalOpen(true)} />
           </div>
           <div className="flex items-center gap-2">
-            {/* Breadcrumb injected by pages via context if needed */}
+            <div className="hidden md:flex items-center gap-1 text-xs text-muted-foreground">
+              {breadcrumbs.map((crumb, index) => {
+                const isLast = index === breadcrumbs.length - 1
+                return (
+                  <div key={crumb.to} className="flex items-center gap-1">
+                    {index > 0 && <span className="text-muted-foreground/60">/</span>}
+                    <button
+                      type="button"
+                      onClick={() => navigate(crumb.to)}
+                      className={cn(
+                        'transition-colors',
+                        isLast ? 'text-foreground font-medium cursor-default' : 'hover:text-foreground'
+                      )}
+                      disabled={isLast}
+                    >
+                      {crumb.label}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
           </div>
           <div className="flex items-center gap-2">
+            {pendingSyncCount > 0 && (
+              <div
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded border border-amber-500/40 bg-amber-500/10 text-[11px] text-amber-300"
+                title={`${pendingSyncCount} queued change${pendingSyncCount === 1 ? '' : 's'} waiting to sync`}
+              >
+                <span className="inline-flex w-2 h-2 rounded-full bg-amber-400" />
+                <span>Pending Sync: {pendingSyncCount}</span>
+              </div>
+            )}
+
+            {failedSyncCount > 0 && (
+              <div
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded border border-destructive/50 bg-destructive/10 text-[11px] text-destructive"
+                title={failedSyncSummary ?? `${failedSyncCount} sync issue${failedSyncCount === 1 ? '' : 's'} detected`}
+              >
+                <span className="inline-flex w-2 h-2 rounded-full bg-destructive" />
+                <span>Sync Issues: {failedSyncCount}</span>
+              </div>
+            )}
+
+            <div
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded border border-border/60 text-[11px] text-muted-foreground"
+              title={`Realtime: ${realtime.text} • ${realtime.lastSyncedLabel} • ${realtime.subscriptionCount} subscriptions`}
+            >
+              <span className={cn('w-2 h-2 rounded-full', realtime.color)} />
+              <Wifi className="w-3 h-3" />
+              <span>{realtime.text}</span>
+              <span className="text-muted-foreground/80">• {realtime.lastSyncedLabel}</span>
+            </div>
+
             {/* Install App button — only shown when browser supports PWA install */}
             {canInstall && (
               <button
@@ -260,6 +409,18 @@ export function AppLayout() {
               >
                 <MonitorDown className="w-3.5 h-3.5" />
                 <span>Install App</span>
+              </button>
+            )}
+
+            {!canInstall && !isInstalled && installHelpText && (
+              <button
+                type="button"
+                onClick={() => setShowInstallHelp((v) => !v)}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors"
+                title="How to install this app"
+              >
+                <MonitorDown className="w-3.5 h-3.5" />
+                <span>Install Help</span>
               </button>
             )}
             <div className="relative">
@@ -320,6 +481,35 @@ export function AppLayout() {
             </div>
           </div>
         </header>
+
+        {showInstallHelp && installHelpText && (
+          <div className="px-4 md:px-6 py-2 border-b border-border bg-accent/30 flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">{installHelpText}</p>
+            <button
+              type="button"
+              onClick={() => setShowInstallHelp(false)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {failedSyncCount > 0 && (
+          <div className="px-4 md:px-6 py-2 border-b border-destructive/30 bg-destructive/10 flex items-center justify-between gap-3">
+            <p className="text-xs text-destructive/90">
+              {failedSyncSummary ?? `${failedSyncCount} queued change${failedSyncCount === 1 ? '' : 's'} failed to sync.`}
+            </p>
+            <button
+              type="button"
+              onClick={handleRetrySync}
+              disabled={!isOnline}
+              className="text-xs px-2.5 py-1 rounded border border-destructive/50 text-destructive hover:bg-destructive/10 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              Retry Sync
+            </button>
+          </div>
+        )}
 
         {/* Offline indicator */}
         {!isOnline && (

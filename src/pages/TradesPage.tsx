@@ -136,6 +136,10 @@ export function TradesPage() {
   const [gradeFilter, setGradeFilter] = useState<GradeFilter>(() => getInitialFilters().gradeFilter)
   const [sortKey, setSortKey] = useState<SortKey>(() => getInitialFilters().sortKey)
   const [sortDir, setSortDir] = useState<SortDir>(() => getInitialFilters().sortDir)
+  const [exportFromDate, setExportFromDate] = useState('')
+  const [exportToDate, setExportToDate] = useState('')
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedTradeIds, setSelectedTradeIds] = useState<string[]>([])
 
   useEffect(() => {
     if (user?.id && selectedAccountId) fetchTrades(user.id, selectedAccountId)
@@ -277,6 +281,27 @@ export function TradesPage() {
     sortDir,
   ])
 
+  const exportFilteredTrades = useMemo(() => {
+    return filtered.filter((trade) => {
+      const day = trade.entry_date?.slice(0, 10)
+      if (!day) return false
+      if (exportFromDate && day < exportFromDate) return false
+      if (exportToDate && day > exportToDate) return false
+      return true
+    })
+  }, [filtered, exportFromDate, exportToDate])
+
+  const selectedTrades = useMemo(() => {
+    if (selectedTradeIds.length === 0) return []
+    const selectedSet = new Set(selectedTradeIds)
+    return exportFilteredTrades.filter((trade) => selectedSet.has(trade.id))
+  }, [exportFilteredTrades, selectedTradeIds])
+
+  useEffect(() => {
+    const visibleIds = new Set(exportFilteredTrades.map((trade) => trade.id))
+    setSelectedTradeIds((prev) => prev.filter((id) => visibleIds.has(id)))
+  }, [exportFilteredTrades])
+
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
     else { setSortKey(key); setSortDir('desc') }
@@ -303,14 +328,39 @@ export function TradesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {filtered.length > 0 && (
+          {exportFilteredTrades.length > 0 && (
             <button
-              onClick={() => exportToCsv(filtered)}
+              onClick={() => exportToCsv(exportFilteredTrades)}
               className="flex items-center gap-2 border border-border rounded-md px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              title={`Export ${filtered.length} trade${filtered.length !== 1 ? 's' : ''} to CSV`}
+              title={`Export ${exportFilteredTrades.length} trade${exportFilteredTrades.length !== 1 ? 's' : ''} to CSV`}
             >
               <Download className="w-4 h-4" />
               <span className="hidden sm:inline">Export CSV</span>
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setSelectionMode((prev) => !prev)
+              if (selectionMode) setSelectedTradeIds([])
+            }}
+            className={`flex items-center gap-2 border rounded-md px-3 py-2 text-sm transition-colors ${
+              selectionMode
+                ? 'border-primary/50 bg-primary/10 text-primary'
+                : 'border-border text-muted-foreground hover:text-foreground hover:bg-accent'
+            }`}
+          >
+            <span className="hidden sm:inline">{selectionMode ? 'Cancel Batch' : 'Batch Select'}</span>
+            <span className="sm:hidden">Batch</span>
+          </button>
+          {selectionMode && selectedTrades.length > 0 && (
+            <button
+              onClick={() => exportToCsv(selectedTrades)}
+              className="flex items-center gap-2 border border-border rounded-md px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title={`Export ${selectedTrades.length} selected trade${selectedTrades.length !== 1 ? 's' : ''} to CSV`}
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Export Selected ({selectedTrades.length})</span>
+              <span className="sm:hidden">Selected</span>
             </button>
           )}
           <button
@@ -372,6 +422,42 @@ export function TradesPage() {
             placeholder="Search ticker, strategy..."
             className="w-full bg-input border border-border rounded-md pl-8 pr-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
           />
+        </div>
+
+        {/* Export date range */}
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] text-muted-foreground">Export From</label>
+            <input
+              type="date"
+              value={exportFromDate}
+              onChange={(e) => setExportFromDate(e.target.value)}
+              className="bg-input border border-border rounded-md px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] text-muted-foreground">Export To</label>
+            <input
+              type="date"
+              value={exportToDate}
+              onChange={(e) => setExportToDate(e.target.value)}
+              className="bg-input border border-border rounded-md px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+          {(exportFromDate || exportToDate) && (
+            <button
+              onClick={() => {
+                setExportFromDate('')
+                setExportToDate('')
+              }}
+              className="h-8 px-2.5 rounded-md border border-border text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              Clear Range
+            </button>
+          )}
+          <p className="text-[11px] text-muted-foreground ml-auto">
+            Export scope: {exportFilteredTrades.length} trade{exportFilteredTrades.length !== 1 ? 's' : ''}
+          </p>
         </div>
 
         {/* Filter buttons row */}
@@ -445,6 +531,23 @@ export function TradesPage() {
         {/* Column headers */}
         <div className="flex items-center gap-4 px-4 py-2 border-b border-border bg-accent/30">
           <div className="w-7" />
+          {selectionMode && (
+            <div className="w-4">
+              <input
+                type="checkbox"
+                checked={exportFilteredTrades.length > 0 && selectedTradeIds.length === exportFilteredTrades.length}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setSelectedTradeIds(exportFilteredTrades.map((trade) => trade.id))
+                  } else {
+                    setSelectedTradeIds([])
+                  }
+                }}
+                aria-label="Select all visible trades"
+                className="h-4 w-4 rounded border-border bg-input text-primary focus:ring-primary"
+              />
+            </div>
+          )}
           <div className="flex-1">
             <SortBtn k="ticker" label="Ticker / Strategy" />
           </div>
@@ -486,6 +589,17 @@ export function TradesPage() {
               key={trade.id}
               trade={trade}
               onClick={() => navigate(`/trades/${trade.id}`)}
+              selectable={selectionMode}
+              selected={selectedTradeIds.includes(trade.id)}
+              onToggleSelect={(tradeId, checked) => {
+                setSelectedTradeIds((prev) => {
+                  if (checked) {
+                    if (prev.includes(tradeId)) return prev
+                    return [...prev, tradeId]
+                  }
+                  return prev.filter((id) => id !== tradeId)
+                })
+              }}
             />
           ))
         )}

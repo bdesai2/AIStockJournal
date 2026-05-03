@@ -9,6 +9,7 @@ import { useTradeStore } from '@/store/tradeStore'
 import { useAiStore } from '@/store/aiStore'
 import { useStrategyStore } from '@/store/strategyStore'
 import { STRATEGY_TAG_LABELS, calcExitPriceFromExecutions } from '@/lib/tradeUtils'
+import { optimizeImageForUpload } from '@/lib/imageOptimization'
 import { cn } from '@/lib/utils'
 import type { CreateTradeInput, StrategyTag } from '@/types'
 
@@ -345,9 +346,15 @@ export function NewTradePage() {
 
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
 
-  const handleFileAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileAdd = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
-    setPendingFiles((prev) => [...prev, ...files])
+    if (files.length === 0) return
+
+    const optimizedFiles = await Promise.all(
+      files.map((file) => optimizeImageForUpload(file).catch(() => file))
+    )
+
+    setPendingFiles((prev) => [...prev, ...optimizedFiles])
     e.target.value = ''
   }
 
@@ -437,12 +444,15 @@ export function NewTradePage() {
       <form onSubmit={handleSubmit(onSubmit, (errors) => console.error('❌ Validation errors', errors))} className="space-y-5">
         {/* ── Core fields ── */}
         <Section title="Trade Details">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <Field label="Ticker" error={errors.ticker?.message} required>
               <input
                 {...register('ticker')}
                 placeholder="AAPL"
                 className={cn(inputClass, 'uppercase')}
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </Field>
 
@@ -471,7 +481,7 @@ export function NewTradePage() {
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-4">
             <Field label="Entry Date" error={errors.entry_date?.message} required>
               <input {...register('entry_date')} type="datetime-local" className={inputClass} />
             </Field>
@@ -483,26 +493,26 @@ export function NewTradePage() {
             )}
 
             <Field label="Entry Price" error={errors.entry_price?.message} required>
-              <input {...register('entry_price')} type="number" step="0.0001" placeholder="0.00" className={inputClass} />
+              <input {...register('entry_price')} type="number" step="0.0001" inputMode="decimal" placeholder="0.00" className={inputClass} />
             </Field>
 
             {(status === 'closed' || status === 'partial') && (
               <Field label="Exit Price">
-                <input {...register('exit_price')} type="number" step="0.0001" placeholder="0.00" className={inputClass} />
+                <input {...register('exit_price')} type="number" step="0.0001" inputMode="decimal" placeholder="0.00" className={inputClass} />
               </Field>
             )}
 
             <Field label={assetType === 'option' ? 'Contracts' : 'Shares / Units'} error={errors.quantity?.message} required>
-              <input {...register('quantity')} type="number" step="1" placeholder="100" className={inputClass} />
+              <input {...register('quantity')} type="number" step="1" inputMode="numeric" placeholder="100" className={inputClass} />
             </Field>
 
             <Field label="Fees ($)">
-              <input {...register('fees')} type="number" step="0.01" placeholder="0.00" className={inputClass} />
+              <input {...register('fees')} type="number" step="0.01" inputMode="decimal" placeholder="0.00" className={inputClass} />
             </Field>
 
             {assetType === 'crypto' && (
               <Field label="Exchange">
-                <input {...register('exchange')} placeholder="Coinbase" className={inputClass} />
+                <input {...register('exchange')} placeholder="Coinbase" className={inputClass} autoCapitalize="words" autoCorrect="off" spellCheck={false} />
               </Field>
             )}
           </div>
@@ -510,18 +520,18 @@ export function NewTradePage() {
 
         {/* ── Risk Management ── */}
         <Section title="Risk Management" defaultOpen={false}>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <Field label="Stop Loss">
-              <input {...register('stop_loss')} type="number" step="0.0001" placeholder="0.00" className={inputClass} />
+              <input {...register('stop_loss')} type="number" step="0.0001" inputMode="decimal" placeholder="0.00" className={inputClass} />
             </Field>
             <Field label="Take Profit">
-              <input {...register('take_profit')} type="number" step="0.0001" placeholder="0.00" className={inputClass} />
+              <input {...register('take_profit')} type="number" step="0.0001" inputMode="decimal" placeholder="0.00" className={inputClass} />
             </Field>
             <Field label="Initial Risk ($)">
-              <input {...register('initial_risk')} type="number" step="0.01" placeholder="0.00" className={inputClass} />
+              <input {...register('initial_risk')} type="number" step="0.01" inputMode="decimal" placeholder="0.00" className={inputClass} />
             </Field>
             <Field label="Risk % of Account">
-              <input {...register('risk_percent')} type="number" step="0.01" placeholder="1.5" className={inputClass} />
+              <input {...register('risk_percent')} type="number" step="0.01" inputMode="decimal" placeholder="1.5" className={inputClass} />
             </Field>
           </div>
 
@@ -623,7 +633,7 @@ export function NewTradePage() {
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                   <Field label="Action">
                     <select {...register(`option_legs.${i}.action`)} className={selectClass}>
                       <option value="buy">Buy</option>
@@ -637,22 +647,22 @@ export function NewTradePage() {
                     </select>
                   </Field>
                   <Field label="Strike" error={errors.option_legs?.[i]?.strike?.message}>
-                    <input {...register(`option_legs.${i}.strike`)} type="number" step="0.5" placeholder="150.00" className={inputClass} />
+                    <input {...register(`option_legs.${i}.strike`)} type="number" step="0.5" inputMode="decimal" placeholder="150.00" className={inputClass} />
                   </Field>
                   <Field label="Expiration" error={errors.option_legs?.[i]?.expiration?.message}>
                     <input {...register(`option_legs.${i}.expiration`)} type="date" className={inputClass} />
                   </Field>
                   <Field label="Contracts">
-                    <input {...register(`option_legs.${i}.contracts`)} type="number" placeholder="1" className={inputClass} />
+                    <input {...register(`option_legs.${i}.contracts`)} type="number" inputMode="numeric" placeholder="1" className={inputClass} />
                   </Field>
                   <Field label="Premium">
-                    <input {...register(`option_legs.${i}.premium`)} type="number" step="0.01" placeholder="1.50" className={inputClass} />
+                    <input {...register(`option_legs.${i}.premium`)} type="number" step="0.01" inputMode="decimal" placeholder="1.50" className={inputClass} />
                   </Field>
                   <Field label="Delta">
-                    <input {...register(`option_legs.${i}.delta`)} type="number" step="0.01" placeholder="0.45" className={inputClass} />
+                    <input {...register(`option_legs.${i}.delta`)} type="number" step="0.01" inputMode="decimal" placeholder="0.45" className={inputClass} />
                   </Field>
                   <Field label="IV %">
-                    <input {...register(`option_legs.${i}.iv`)} type="number" step="0.1" placeholder="35.0" className={inputClass} />
+                    <input {...register(`option_legs.${i}.iv`)} type="number" step="0.1" inputMode="decimal" placeholder="35.0" className={inputClass} />
                   </Field>
                 </div>
               </div>
@@ -671,7 +681,7 @@ export function NewTradePage() {
 
         {/* ── Categorization ── */}
         <Section title="Categorization" defaultOpen={false}>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-4">
             <Field label="Timeframe">
               <select {...register('timeframe')} className={selectClass}>
                 <option value="">— Select —</option>
@@ -704,6 +714,9 @@ export function NewTradePage() {
                   placeholder="e.g. Technology"
                   className={inputClass}
                   list="sector-list"
+                  autoCapitalize="words"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
                 <datalist id="sector-list">
                   {COMMON_SECTORS.map((s) => (
@@ -869,7 +882,7 @@ export function NewTradePage() {
         </Section>
 
         {/* ── Submit ── */}
-        <div className="flex items-center gap-3 pt-2">
+          <div className="sticky bottom-16 md:static z-20 flex items-center gap-3 pt-2 pb-1 md:pb-0 -mx-4 px-4 md:mx-0 md:px-0 bg-background/95 md:bg-transparent border-t border-border/60 md:border-0 backdrop-blur-sm md:backdrop-blur-none">
           <button
             type="submit"
             disabled={isSubmitting}

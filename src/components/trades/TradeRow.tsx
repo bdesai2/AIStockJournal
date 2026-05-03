@@ -6,6 +6,9 @@ import { cn } from '@/lib/utils'
 interface Props {
   trade: Trade
   onClick?: () => void
+  selectable?: boolean
+  selected?: boolean
+  onToggleSelect?: (tradeId: string, checked: boolean) => void
 }
 
 const ASSET_COLORS: Record<string, string> = {
@@ -15,7 +18,7 @@ const ASSET_COLORS: Record<string, string> = {
   crypto: 'text-orange-400 bg-orange-400/10',
 }
 
-export function TradeRow({ trade, onClick }: Props) {
+export function TradeRow({ trade, onClick, selectable = false, selected = false, onToggleSelect }: Props) {
   const buyAmount = calcBuyAmount(trade)
   const sellAmount = calcSellAmount(trade)
   const pnlPercent = calcPnlPercent(trade)
@@ -38,6 +41,18 @@ export function TradeRow({ trade, onClick }: Props) {
           <ArrowDownRight className="w-4 h-4 text-[#ff4d6d]" />
         )}
       </div>
+
+      {selectable && (
+        <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(e) => onToggleSelect?.(trade.id, e.target.checked)}
+            aria-label={`Select trade ${trade.ticker}`}
+            className="h-4 w-4 rounded border-border bg-input text-primary focus:ring-primary"
+          />
+        </div>
+      )}
 
       {/* Ticker + asset type */}
       <div className="flex-1 min-w-0">

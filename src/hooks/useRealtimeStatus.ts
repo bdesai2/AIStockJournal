@@ -1,7 +1,12 @@
+import { useEffect, useState } from 'react'
+
 /**
  * Real-time status monitoring hook
  * Tracks connection state and displays indicators in the UI
  */
+
+export const REALTIME_HEARTBEAT_EVENT = 'trade-reflection:realtime-heartbeat'
+const LAST_SYNC_STORAGE_KEY = 'trade_reflection_last_sync_ts'
 
 export interface RealtimeStatus {
   isConnected: boolean
@@ -10,17 +15,72 @@ export interface RealtimeStatus {
   subscriptionCount: number
 }
 
+function getStoredLastSync(): Date | null {
+  const raw = localStorage.getItem(LAST_SYNC_STORAGE_KEY)
+  if (!raw) return null
+
+  const ts = Number(raw)
+  if (!Number.isFinite(ts) || ts <= 0) return null
+
+  return new Date(ts)
+}
+
+function getConnectionQuality(isOnline: boolean, lastUpdate: Date | null): RealtimeStatus['connectionQuality'] {
+  if (!isOnline) return 'offline'
+  if (!lastUpdate) return 'poor'
+
+  const ageMs = Date.now() - lastUpdate.getTime()
+  if (ageMs <= 60_000) return 'excellent'
+  if (ageMs <= 180_000) return 'good'
+  return 'poor'
+}
+
 /**
  * Hook to monitor Realtime connection status
  * Note: Currently simplified; Supabase JS SDK doesn't expose detailed realtime metrics
  */
 export function useRealtimeStatus(): RealtimeStatus {
-  // For now, we assume realtime is connected if the user is logged in
-  // More detailed status monitoring can be added when needed
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine)
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(() => getStoredLastSync())
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true)
+    const onOffline = () => setIsOnline(false)
+
+    const onRealtimeHeartbeat = (event: Event) => {
+      const customEvent = event as CustomEvent<{ ts?: number }>
+      const ts = customEvent.detail?.ts ?? Date.now()
+      localStorage.setItem(LAST_SYNC_STORAGE_KEY, String(ts))
+      setLastUpdate(new Date(ts))
+    }
+
+    const timer = window.setInterval(() => {
+      // Keep relative timestamps fresh ("x seconds ago")
+      setNow(Date.now())
+    }, 30_000)
+
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    window.addEventListener(REALTIME_HEARTBEAT_EVENT, onRealtimeHeartbeat as EventListener)
+
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+      window.removeEventListener(REALTIME_HEARTBEAT_EVENT, onRealtimeHeartbeat as EventListener)
+    }
+  }, [])
+
+  const connectionQuality = getConnectionQuality(isOnline, lastUpdate)
+
+  // read `now` so hook recalculates quality over time after last update
+  void now
+
   return {
-    isConnected: true,
-    connectionQuality: 'excellent',
-    lastUpdate: new Date(),
+    isConnected: isOnline && connectionQuality !== 'offline',
+    connectionQuality,
+    lastUpdate,
     subscriptionCount: 4, // trades, executions, screenshots, journals
   }
 }
@@ -31,6 +91,22 @@ export function useRealtimeStatus(): RealtimeStatus {
  */
 export function useRealtimeIndicator() {
   const status = useRealtimeStatus()
+
+  const getLastSyncedLabel = () => {
+    if (!status.lastUpdate) return 'Never synced'
+
+    const elapsedMs = Date.now() - status.lastUpdate.getTime()
+    if (elapsedMs < 10_000) return 'Synced just now'
+
+    const seconds = Math.floor(elapsedMs / 1000)
+    if (seconds < 60) return `Synced ${seconds}s ago`
+
+    const minutes = Math.floor(seconds / 60)
+    if (minutes < 60) return `Synced ${minutes}m ago`
+
+    const hours = Math.floor(minutes / 60)
+    return `Synced ${hours}h ago`
+  }
 
   const getIndicatorColor = () => {
     if (!status.isConnected) return 'bg-[#ff4d6d]' // Red
@@ -47,7 +123,9 @@ export function useRealtimeIndicator() {
   return {
     color: getIndicatorColor(),
     text: getIndicatorText(),
+    lastSyncedLabel: getLastSyncedLabel(),
     isConnected: status.isConnected,
     quality: status.connectionQuality,
+    subscriptionCount: status.subscriptionCount,
   }
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TrendingUp,TrendingDown,Target,Activity,Award,AlertTriangle,PlusCircle,Brain,Sparkles,Loader2,ChevronDown,ChevronUp,Zap,Flame,Trophy,Lock } from 'lucide-react'
+import { TrendingUp,TrendingDown,Target,Activity,Award,AlertTriangle,PlusCircle,Brain,Sparkles,Loader2,ChevronDown,ChevronUp,Zap,Flame,Trophy,Lock,Download,FileText } from 'lucide-react'
 import { AreaChart,Area,XAxis,YAxis,Tooltip,ResponsiveContainer,BarChart,Bar,Cell } from 'recharts'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
@@ -9,6 +9,9 @@ import { aggregateStats, fmt, STRATEGY_TAG_LABELS } from '@/lib/tradeUtils'
 import { useCanAccess } from '@/lib/featureGates'
 import { TradeRow } from '@/components/trades/TradeRow'
 import { Tooltip as UITooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
+import { LazyRender } from '@/components/ui/LazyRender'
+import { exportChartAsPng, exportChartAsSvg } from '@/lib/chartExport'
+import { exportMonthlyPerformanceReport, exportQuarterlyPerformanceReport } from '@/lib/reportExport'
 import { db } from '@/lib/supabase'
 import type { CSSProperties } from 'react'
 import type { Trade, StrategyTag } from '@/types'
@@ -118,6 +121,18 @@ export function DashboardPage() {
   const [timeBasedOpen, setTimeBasedOpen] = useState(false)
   const [advancedAnalysisOpen, setAdvancedAnalysisOpen] = useState(false)
   const [proBannerOpen, setProBannerOpen] = useState(true)
+
+  const handleChartExport = async (containerId: string, format: 'png' | 'svg', fileBase: string) => {
+    const stamp = new Date().toISOString().slice(0, 10)
+    if (format === 'svg') {
+      const ok = exportChartAsSvg(containerId, `${fileBase}-${stamp}.svg`)
+      if (!ok) window.alert('Unable to export SVG for this chart right now.')
+      return
+    }
+
+    const ok = await exportChartAsPng(containerId, `${fileBase}-${stamp}.png`)
+    if (!ok) window.alert('Unable to export PNG for this chart right now.')
+  }
 
   // Feature access checks
   const canAccessAdvancedMetrics = useCanAccess('ADVANCED_METRICS', subscription?.tier)
@@ -454,6 +469,46 @@ export function DashboardPage() {
       }))
   }, [filteredTrades])
 
+  const handleExportMonthlyReport = () => {
+    const periodLabel = monthlyData.length > 0
+      ? `${monthlyData[0].label} to ${monthlyData[monthlyData.length - 1].label}`
+      : 'No period'
+
+    exportMonthlyPerformanceReport({
+      periodLabel,
+      generatedAt: new Date().toLocaleString(),
+      totalPnL: stats.total_pnl,
+      totalTrades: stats.total_trades,
+      winRatePercent: stats.win_rate * 100,
+      rows: monthlyData.map((row) => ({
+        label: row.label,
+        pnl: row.pnl,
+        count: row.count,
+        winRate: row.winRate,
+      })),
+    })
+  }
+
+  const handleExportQuarterlyReport = () => {
+    const periodLabel = quarterlyData.length > 0
+      ? `${quarterlyData[0].label} to ${quarterlyData[quarterlyData.length - 1].label}`
+      : 'No period'
+
+    exportQuarterlyPerformanceReport({
+      periodLabel,
+      generatedAt: new Date().toLocaleString(),
+      totalPnL: stats.total_pnl,
+      totalTrades: stats.total_trades,
+      winRatePercent: stats.win_rate * 100,
+      rows: quarterlyData.map((row) => ({
+        label: row.label,
+        pnl: row.pnl,
+        count: row.count,
+        winRate: row.winRate,
+      })),
+    })
+  }
+
   // Month vs Month Comparison (current vs previous)
   const monthComparison = useMemo(() => {
     const today = new Date()
@@ -772,13 +827,35 @@ export function DashboardPage() {
             })}
           </p>
         </div>
-        <button
-          onClick={() => navigate('/trades/new')}
-          className="flex items-center gap-2 bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
-          <PlusCircle className="w-4 h-4" />
-          Log Trade
-        </button>
+        <div className="flex items-center gap-2">
+          {monthlyData.length > 0 && (
+            <button
+              onClick={handleExportMonthlyReport}
+              className="hidden sm:flex items-center gap-2 border border-border rounded-md px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title="Export monthly performance report"
+            >
+              <FileText className="w-4 h-4" />
+              Monthly Report
+            </button>
+          )}
+          {quarterlyData.length > 0 && (
+            <button
+              onClick={handleExportQuarterlyReport}
+              className="hidden sm:flex items-center gap-2 border border-border rounded-md px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title="Export quarterly performance report"
+            >
+              <FileText className="w-4 h-4" />
+              Quarterly Report
+            </button>
+          )}
+          <button
+            onClick={() => navigate('/trades/new')}
+            className="flex items-center gap-2 bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Log Trade
+          </button>
+        </div>
       </div>
 
       {/* Collapsible Filters Section */}
@@ -1193,12 +1270,31 @@ export function DashboardPage() {
           )}
 
           {/* Charts row */}
+          <LazyRender minHeight={280}>
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
             {/* Cumulative P&L */}
-            <div className="xl:col-span-2 rounded-lg border border-border bg-card p-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-4">
-                Cumulative P&L
-              </p>
+            <div className="xl:col-span-2 rounded-lg border border-border bg-card p-4" id="chart-cumulative-pnl">
+              <div className="flex items-center justify-between mb-4 gap-2">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Cumulative P&L
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => void handleChartExport('chart-cumulative-pnl', 'png', 'cumulative-pnl')}
+                    className="text-[11px] px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    title="Export this chart as PNG"
+                  >
+                    <Download className="w-3 h-3 inline mr-1" />PNG
+                  </button>
+                  <button
+                    onClick={() => void handleChartExport('chart-cumulative-pnl', 'svg', 'cumulative-pnl')}
+                    className="text-[11px] px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    title="Export this chart as SVG"
+                  >
+                    SVG
+                  </button>
+                </div>
+              </div>
               {pnlCurve.length > 1 ? (
                 <ResponsiveContainer width="100%" height={180}>
                   <AreaChart data={pnlCurve}>
@@ -1249,10 +1345,28 @@ export function DashboardPage() {
             </div>
 
             {/* Daily P&L bars */}
-            <div className="rounded-lg border border-border bg-card p-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
-                Daily P&L (30d)
-              </p>
+            <div className="rounded-lg border border-border bg-card p-4" id="chart-daily-pnl">
+              <div className="flex items-center justify-between mb-1 gap-2">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Daily P&L (30d)
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => void handleChartExport('chart-daily-pnl', 'png', 'daily-pnl')}
+                    className="text-[11px] px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    title="Export this chart as PNG"
+                  >
+                    <Download className="w-3 h-3 inline mr-1" />PNG
+                  </button>
+                  <button
+                    onClick={() => void handleChartExport('chart-daily-pnl', 'svg', 'daily-pnl')}
+                    className="text-[11px] px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    title="Export this chart as SVG"
+                  >
+                    SVG
+                  </button>
+                </div>
+              </div>
               <p className="text-[11px] text-muted-foreground/80 mb-3">Click a bar to open matching trades</p>
               {dailyPnl.length > 0 ? (
                 <ResponsiveContainer width="100%" height={180}>
@@ -1303,9 +1417,11 @@ export function DashboardPage() {
               )}
             </div>
           </div>
+          </LazyRender>
 
           {/* P&L Activity Heatmap */}
           {canAccessHeatmap && (
+            <LazyRender minHeight={200}>
             <div className="rounded-lg border border-border bg-card p-4">
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
                 P&L Activity — Past 52 Weeks
@@ -1355,10 +1471,12 @@ export function DashboardPage() {
                 <span className="text-xs text-muted-foreground">Loss</span>
               </div>
             </div>
+            </LazyRender>
           )}
 
           {/* Performance breakdown */}
           {(strategyChartData.length > 0 || userStrategyChartData.length > 0 || assetTypeData.length > 0) && (
+            <LazyRender minHeight={260}>
             <div className="space-y-4">
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 {/* By Tags */}
@@ -1546,6 +1664,7 @@ export function DashboardPage() {
                 </div>
               )}
             </div>
+            </LazyRender>
           )}
 
           {/* Collapsible Dimensional Analysis */}
@@ -1607,6 +1726,7 @@ export function DashboardPage() {
               </button>
 
               {timeBasedOpen && (
+                <LazyRender minHeight={220}>
                 <div className="px-4 py-4 grid grid-cols-1 xl:grid-cols-2 gap-4 border-t border-border bg-muted/20">
 
                   {/* Monthly P&L — full-width BarChart */}
@@ -1709,6 +1829,7 @@ export function DashboardPage() {
                   <DimensionCard title="Time of Day" data={stats.by_time_of_day} labelMap={TIME_OF_DAY_LABELS} />
 
                 </div>
+                </LazyRender>
               )}
             </div>
           )}

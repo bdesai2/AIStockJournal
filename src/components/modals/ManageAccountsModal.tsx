@@ -99,7 +99,7 @@ export function ManageAccountsModal({ isOpen, onClose }: ManageAccountsModalProp
 
   return (
     <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4">
-      <div className="bg-card rounded-lg border border-border max-w-lg w-full max-h-[600px] overflow-hidden flex flex-col">
+      <div className="bg-card border border-border w-full h-full sm:h-auto sm:rounded-lg sm:max-w-lg sm:max-h-[600px] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
           <h2 className="text-lg font-display tracking-wider">Manage Accounts</h2>

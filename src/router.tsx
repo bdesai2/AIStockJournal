@@ -1,30 +1,46 @@
+import { Suspense, lazy } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { AuthLayout } from '@/components/layout/AuthLayout'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
-import { LoginPage } from '@/pages/LoginPage'
-import { AuthCallbackPage } from '@/pages/AuthCallbackPage'
-import { DashboardPage } from '@/pages/DashboardPage'
-import { TradesPage } from '@/pages/TradesPage'
-import { TradeDetailPage } from '@/pages/TradeDetailPage'
-import { NewTradePage } from '@/pages/NewTradePage'
-import { JournalPage } from '@/pages/JournalPage'
-import { SettingsPage } from '@/pages/SettingsPage'
-import { StrategiesPage } from '@/pages/StrategiesPage'
-import { PricingPage } from '@/pages/PricingPage'
-import { AdminDashboardPage } from '@/pages/AdminDashboardPage'
-import { PrivacyPolicyPage } from '@/pages/PrivacyPolicyPage'
-import { TermsOfServicePage } from '@/pages/TermsOfServicePage'
-import { DisclaimersPage } from '@/pages/DisclaimersPage'
-import { CookiePolicyPage } from '@/pages/CookiePolicyPage'
+
+const LoginPage = lazy(() => import('@/pages/LoginPage').then((m) => ({ default: m.LoginPage })))
+const AuthCallbackPage = lazy(() => import('@/pages/AuthCallbackPage').then((m) => ({ default: m.AuthCallbackPage })))
+const DashboardPage = lazy(() => import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })))
+const TradesPage = lazy(() => import('@/pages/TradesPage').then((m) => ({ default: m.TradesPage })))
+const TradeDetailPage = lazy(() => import('@/pages/TradeDetailPage').then((m) => ({ default: m.TradeDetailPage })))
+const NewTradePage = lazy(() => import('@/pages/NewTradePage').then((m) => ({ default: m.NewTradePage })))
+const JournalPage = lazy(() => import('@/pages/JournalPage').then((m) => ({ default: m.JournalPage })))
+const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+const StrategiesPage = lazy(() => import('@/pages/StrategiesPage').then((m) => ({ default: m.StrategiesPage })))
+const PricingPage = lazy(() => import('@/pages/PricingPage').then((m) => ({ default: m.PricingPage })))
+const AdminDashboardPage = lazy(() => import('@/pages/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })))
+const PrivacyPolicyPage = lazy(() => import('@/pages/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })))
+const TermsOfServicePage = lazy(() => import('@/pages/TermsOfServicePage').then((m) => ({ default: m.TermsOfServicePage })))
+const DisclaimersPage = lazy(() => import('@/pages/DisclaimersPage').then((m) => ({ default: m.DisclaimersPage })))
+const CookiePolicyPage = lazy(() => import('@/pages/CookiePolicyPage').then((m) => ({ default: m.CookiePolicyPage })))
+
+function withSuspense(node: React.ReactNode) {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8 flex items-center justify-center h-full">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      {node}
+    </Suspense>
+  )
+}
 
 export const router = createBrowserRouter([
   {
     path: '/auth',
     element: <AuthLayout />,
     children: [
-      { path: 'login', element: <LoginPage /> },
-      { path: 'callback', element: <AuthCallbackPage /> },
+      { path: 'login', element: withSuspense(<LoginPage />) },
+      { path: 'callback', element: withSuspense(<AuthCallbackPage />) },
     ],
   },
   {
@@ -36,20 +52,20 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
-      { path: 'dashboard', element: <DashboardPage /> },
-      { path: 'trades', element: <TradesPage /> },
-      { path: 'trades/new', element: <NewTradePage /> },
-      { path: 'trades/:id', element: <TradeDetailPage /> },
-      { path: 'trades/:id/edit', element: <NewTradePage /> },
-      { path: 'journal', element: <JournalPage /> },
-      { path: 'strategies', element: <StrategiesPage /> },
-      { path: 'pricing', element: <PricingPage /> },
-      { path: 'settings', element: <SettingsPage /> },
-      { path: 'admin', element: <AdminDashboardPage /> },
-      { path: 'privacy', element: <PrivacyPolicyPage /> },
-      { path: 'terms', element: <TermsOfServicePage /> },
-      { path: 'disclaimers', element: <DisclaimersPage /> },
-      { path: 'cookie-policy', element: <CookiePolicyPage /> },
+      { path: 'dashboard', element: withSuspense(<DashboardPage />) },
+      { path: 'trades', element: withSuspense(<TradesPage />) },
+      { path: 'trades/new', element: withSuspense(<NewTradePage />) },
+      { path: 'trades/:id', element: withSuspense(<TradeDetailPage />) },
+      { path: 'trades/:id/edit', element: withSuspense(<NewTradePage />) },
+      { path: 'journal', element: withSuspense(<JournalPage />) },
+      { path: 'strategies', element: withSuspense(<StrategiesPage />) },
+      { path: 'pricing', element: withSuspense(<PricingPage />) },
+      { path: 'settings', element: withSuspense(<SettingsPage />) },
+      { path: 'admin', element: withSuspense(<AdminDashboardPage />) },
+      { path: 'privacy', element: withSuspense(<PrivacyPolicyPage />) },
+      { path: 'terms', element: withSuspense(<TermsOfServicePage />) },
+      { path: 'disclaimers', element: withSuspense(<DisclaimersPage />) },
+      { path: 'cookie-policy', element: withSuspense(<CookiePolicyPage />) },
     ],
   },
   { path: '*', element: <Navigate to="/dashboard" replace /> },

@@ -4,6 +4,19 @@ import { supabase } from '@/lib/supabase'
 import { useNotificationStore } from '@/store/notificationStore'
 import { useAuthStore } from '@/store/authStore'
 import type { Trade } from '@/types'
+import { REALTIME_HEARTBEAT_EVENT } from '@/hooks/useRealtimeStatus'
+
+function markRealtimeHeartbeat(source: string) {
+  if (typeof window === 'undefined') return
+
+  const ts = Date.now()
+  window.localStorage.setItem('trade_reflection_last_sync_ts', String(ts))
+  window.dispatchEvent(
+    new CustomEvent(REALTIME_HEARTBEAT_EVENT, {
+      detail: { source, ts },
+    })
+  )
+}
 
 /**
  * Hook to subscribe to real-time trade updates via Supabase Realtime
@@ -35,6 +48,8 @@ export function useTradeRealtimeSubscriptions() {
           filter: `user_id=eq.${user.id}`, // Only trades for current user
         },
         (payload) => {
+          markRealtimeHeartbeat('trades-event')
+
           const operation = payload.eventType
           const newTrade = payload.new as Trade | null
           const oldTrade = payload.old as Trade | null
@@ -102,6 +117,7 @@ export function useTradeRealtimeSubscriptions() {
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
+          markRealtimeHeartbeat('trades-subscribed')
           console.log('✅ Realtime trade subscriptions active')
         } else if (status === 'CHANNEL_ERROR') {
           console.error('❌ Realtime subscription error')
@@ -178,6 +194,8 @@ export function useExecutionRealtimeSubscriptions() {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
+          markRealtimeHeartbeat('executions-event')
+
           const execution = payload.new
           if (execution) {
             push({
@@ -190,7 +208,11 @@ export function useExecutionRealtimeSubscriptions() {
           }
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          markRealtimeHeartbeat('executions-subscribed')
+        }
+      })
 
     channelRef.current = channel
 
@@ -230,6 +252,8 @@ export function useScreenshotRealtimeSubscriptions() {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
+          markRealtimeHeartbeat('screenshots-event')
+
           push({
             kind: 'screenshot_uploaded',
             variant: 'success',
@@ -238,7 +262,11 @@ export function useScreenshotRealtimeSubscriptions() {
           })
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          markRealtimeHeartbeat('screenshots-subscribed')
+        }
+      })
 
     channelRef.current = channel
 
@@ -278,6 +306,8 @@ export function useJournalRealtimeSubscriptions() {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
+          markRealtimeHeartbeat('journals-event')
+
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             push({
               kind: 'journal_saved',
@@ -288,7 +318,11 @@ export function useJournalRealtimeSubscriptions() {
           }
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          markRealtimeHeartbeat('journals-subscribed')
+        }
+      })
 
     channelRef.current = channel
 

@@ -11,6 +11,7 @@ import {
   ArrowRight,
   CheckSquare,
   Square,
+  FileText,
 } from 'lucide-react'
 import {
   format,
@@ -26,6 +27,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { useJournalStore } from '@/store/journalStore'
 import { fmt, pnlColor } from '@/lib/tradeUtils'
+import { exportMonthlyJournalReport } from '@/lib/reportExport'
 import type { DailyJournal, Trade } from '@/types'
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -131,6 +133,34 @@ export function JournalPage() {
     return { pnl, tradesCount, daysWithTrades }
   }, [dailyData, year, month])
 
+  const handleExportJournalReport = () => {
+    const monthKey = `${year}-${String(month).padStart(2, '0')}`
+    const rows = Object.keys(journals)
+      .filter((dateStr) => dateStr.startsWith(monthKey))
+      .sort((a, b) => a.localeCompare(b))
+      .map((dateStr) => {
+        const journal = journals[dateStr]
+        const day = dailyData.get(dateStr)
+        return {
+          date: dateStr,
+          pnl: day?.pnl ?? 0,
+          tradeCount: day?.count ?? 0,
+          marketMood: journal?.market_mood,
+          personalMood: journal?.personal_mood,
+          reviewedRules: journal?.reviewed_rules,
+        }
+      })
+
+    exportMonthlyJournalReport({
+      monthLabel: format(currentDate, 'MMMM yyyy'),
+      generatedAt: new Date().toLocaleString(),
+      totalPnL: monthSummary.pnl,
+      totalTrades: monthSummary.tradesCount,
+      journalEntries: rows.length,
+      rows,
+    })
+  }
+
   // Calendar grid for current month
   const gridCells = useMemo((): GridCell[] => {
     const start = startOfMonth(currentDate)
@@ -184,11 +214,21 @@ export function JournalPage() {
   return (
     <div className="p-6 space-y-6 animate-in">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-display tracking-wider">DAILY JOURNAL</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Click any day to review trades and write journal notes
-        </p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-display tracking-wider">DAILY JOURNAL</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Click any day to review trades and write journal notes
+          </p>
+        </div>
+        <button
+          onClick={handleExportJournalReport}
+          className="hidden sm:flex items-center gap-2 border border-border rounded-md px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          title="Export monthly journal report"
+        >
+          <FileText className="w-4 h-4" />
+          Export Month Report
+        </button>
       </div>
 
       <div className="flex flex-col xl:flex-row gap-4">
@@ -497,7 +537,9 @@ export function JournalPage() {
                     }
                     placeholder="Outlook, planned trades, goals for today..."
                     rows={3}
-                    className="w-full rounded-md bg-background border border-border px-3 py-2 text-xs placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+                    autoCapitalize="sentences"
+                    spellCheck
+                    className="w-full rounded-md bg-background border border-border px-3 py-2 text-sm placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-ring font-mono"
                   />
                 </div>
 
@@ -513,7 +555,9 @@ export function JournalPage() {
                     }
                     placeholder="What happened? Key lessons learned..."
                     rows={3}
-                    className="w-full rounded-md bg-background border border-border px-3 py-2 text-xs placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+                    autoCapitalize="sentences"
+                    spellCheck
+                    className="w-full rounded-md bg-background border border-border px-3 py-2 text-sm placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-ring font-mono"
                   />
                 </div>
 
@@ -530,7 +574,9 @@ export function JournalPage() {
                     }
                     placeholder={`Follow my trading plan\nNo revenge trading\nMax 3 trades today`}
                     rows={3}
-                    className="w-full rounded-md bg-background border border-border px-3 py-2 text-xs placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+                    autoCapitalize="sentences"
+                    spellCheck
+                    className="w-full rounded-md bg-background border border-border px-3 py-2 text-sm placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-ring font-mono"
                   />
                 </div>
 
@@ -552,13 +598,15 @@ export function JournalPage() {
                 </div>
 
                 {/* Save */}
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="w-full bg-primary text-primary-foreground rounded-md py-2 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : selectedJournal ? 'Update Entry' : 'Save Entry'}
-                </button>
+                <div className="sticky bottom-0 pt-2 pb-1 bg-card/95 backdrop-blur-sm border-t border-border/60">
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="w-full bg-primary text-primary-foreground rounded-md py-2 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    {saving ? 'Saving...' : selectedJournal ? 'Update Entry' : 'Save Entry'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
