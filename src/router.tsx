@@ -7,6 +7,7 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 const LoginPage = lazy(() => import('@/pages/LoginPage').then((m) => ({ default: m.LoginPage })))
 const AuthCallbackPage = lazy(() => import('@/pages/AuthCallbackPage').then((m) => ({ default: m.AuthCallbackPage })))
 const DashboardPage = lazy(() => import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })))
+const OpenPositionsDashboardPage = lazy(() => import('@/pages/OpenPositionsDashboardPage').then((m) => ({ default: m.OpenPositionsDashboardPage })))
 const TradesPage = lazy(() => import('@/pages/TradesPage').then((m) => ({ default: m.TradesPage })))
 const TradeDetailPage = lazy(() => import('@/pages/TradeDetailPage').then((m) => ({ default: m.TradeDetailPage })))
 const NewTradePage = lazy(() => import('@/pages/NewTradePage').then((m) => ({ default: m.NewTradePage })))
@@ -53,6 +54,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard', element: withSuspense(<DashboardPage />) },
+      { path: 'open-positions', element: withSuspense(<OpenPositionsDashboardPage />) },
       { path: 'trades', element: withSuspense(<TradesPage />) },
       { path: 'trades/new', element: withSuspense(<NewTradePage />) },
       { path: 'trades/:id', element: withSuspense(<TradeDetailPage />) },

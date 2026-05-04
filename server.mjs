@@ -19,6 +19,7 @@ import { registerAiRoutes } from './lib/aiRoutes.mjs'
 import { registerFinnhubProxyRoutes } from './lib/finnhubProxy.mjs'
 import { registerStripeRoutes } from './lib/stripeRoutes.mjs'
 import { registerPrivacyRoutes } from './lib/privacyRoutes.mjs'
+import { getCacheStats } from './lib/priceLoader.mjs'
 
 // ─── Initialize Express & Configuration ────────────────────────────────────
 
@@ -101,6 +102,13 @@ app.get('/health', (_req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.json({ status: 'ok' })
 })
+
+// Price cache stats — dev only, not exposed in production
+if (process.env.NODE_ENV !== 'production') {
+  app.get('/api/prices/cache-stats', (_req, res) => {
+    res.json(getCacheStats())
+  })
+}
 
 // ─── Initialize Claude Client ─────────────────────────────────────────────
 

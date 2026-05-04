@@ -35,7 +35,7 @@ interface AiState {
   runSetupCheck: (params: Parameters<typeof aiApi.setupCheck>[0]) => Promise<void>
   clearSetupResult: () => void
   runWeeklyDigest: (trades: Trade[]) => Promise<void>
-  analyzeOpenTrade: (trade: Trade) => Promise<void>
+  analyzeOpenTrade: (trade: Trade) => Promise<TradeAnalysisResult | null>
   clearGradeError: () => void
   clearSetupError: () => void
   clearDigestError: () => void
@@ -206,27 +206,42 @@ export const useAiStore = create<AiState>((set) => ({
         analysisLoading: false,
         analysisError: 'Open trade analysis is a Pro feature. Upgrade to unlock real-time AI recommendations.',
       })
-      return
+      return null
     }
 
     set({ analysisLoading: true, analysisError: null, analysisResult: null })
     try {
       const result = await aiApi.tradeAnalysis(trade)
+      const { updateTrade } = useTradeStore.getState()
+      const analyzedAt = new Date().toISOString()
+
+      const saved = await updateTrade(trade.id, {
+        open_trade_analysis: result,
+        open_trade_analyzed_at: analyzedAt,
+        open_trade_model_version: 'trade-analysis-v1',
+      })
+
+      if (!saved) {
+        throw new Error('Analysis generated but failed to save to database')
+      }
+
       set({ analysisLoading: false, analysisResult: result })
 
       const { push } = useNotificationStore.getState()
       push({
         kind: 'analysis_ready',
         variant: 'info',
-        title: 'Analysis ready',
-        message: `${trade.ticker} · AI analysis complete`,
+        title: 'Analysis saved',
+        message: `${trade.ticker} · AI analysis saved to trade record`,
         tradeId: trade.id,
       })
+      return result
     } catch (err) {
       set({
         analysisLoading: false,
         analysisError: err instanceof Error ? err.message : 'Trade analysis failed',
       })
+      return null
     }
   },
 

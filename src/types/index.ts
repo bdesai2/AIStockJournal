@@ -178,9 +178,30 @@ export interface Trade {
   ai_model_version?: string  // Claude model used, e.g. claude-haiku-4-5-20251001
   ai_expires_at?: string     // ISO timestamp when cached AI grade should be refreshed
 
+  // Open-trade AI analysis persistence
+  open_trade_analysis?: OpenTradeAnalysisSnapshot
+  open_trade_analyzed_at?: string
+  open_trade_model_version?: string
+
   // Metadata
   created_at: string
   updated_at: string
+}
+
+export interface OpenTradeAnalysisSnapshot {
+  market_overview: string
+  current_price_estimate: number
+  estimated_pnl: number
+  estimated_pnl_percent: number
+  bullish_factors: string[]
+  bearish_factors: string[]
+  technical_outlook: string
+  recommendation: 'hold' | 'reduce' | 'exit' | 'add'
+  confidence: 'low' | 'moderate' | 'high'
+  next_key_levels: {
+    resistance: number
+    support: number
+  }
 }
 
 // ─── Trade Form (for create/edit) ─────────────────────────────────────────────
@@ -215,6 +236,9 @@ export interface AiTradeUpdate {
   ai_analyzed_at?: string
   ai_model_version?: string
   ai_expires_at?: string
+  open_trade_analysis?: OpenTradeAnalysisSnapshot
+  open_trade_analyzed_at?: string
+  open_trade_model_version?: string
 }
 
 // ─── User Profile ─────────────────────────────────────────────────────────────

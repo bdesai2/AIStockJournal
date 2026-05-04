@@ -12,6 +12,7 @@ import { useTradeStore } from '@/store/tradeStore'
 import { useAiStore } from '@/store/aiStore'
 import { fmt, pnlColor, STRATEGY_TAG_LABELS, calcBuyAmount, calcSellAmount, calcPnlPercent, calcUnrealizedPnl, calcUnrealizedPercent, findSimilarTrades } from '@/lib/tradeUtils'
 import { cn } from '@/lib/utils'
+import type { OpenTradeAnalysisSnapshot } from '@/types'
 
 function DetailRow({ label, value, valueClass }: { label: string; value: React.ReactNode; valueClass?: string }) {
   return (
@@ -88,6 +89,8 @@ export function TradeDetailPage() {
     () => similar.filter(({ score }) => score > 49),
     [similar]
   )
+  const persistedOpenTradeAnalysis = trade?.open_trade_analysis as OpenTradeAnalysisSnapshot | undefined
+  const visibleOpenTradeAnalysis = analysisResult ?? persistedOpenTradeAnalysis ?? null
 
   if (!trade) {
     return (
@@ -494,38 +497,42 @@ export function TradeDetailPage() {
         )}
 
         {/* AI Analysis — Open Trade */}
-        {(trade.status === 'open' || trade.status === 'partial') && analysisResult && (
+        {(trade.status === 'open' || trade.status === 'partial') && visibleOpenTradeAnalysis && (
           <Card title="AI Analysis" icon={Brain}>
             <div className="space-y-4">
               <div>
                 <p className="text-xs text-muted-foreground mb-2">Market Overview</p>
-                <p className="text-sm text-foreground/80">{analysisResult.market_overview}</p>
+                <p className="text-sm text-foreground/80">{visibleOpenTradeAnalysis.market_overview}</p>
               </div>
+
+              {trade.open_trade_analyzed_at && (
+                <p className="text-xs text-muted-foreground">Saved {fmt.dateTime(trade.open_trade_analyzed_at)}</p>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Current Price Est.</p>
-                  <p className="text-sm font-mono font-bold">{fmt.currency(analysisResult.current_price_estimate, 4)}</p>
+                  <p className="text-sm font-mono font-bold">{fmt.currency(visibleOpenTradeAnalysis.current_price_estimate, 4)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Est. P&L</p>
-                  <p className={cn('text-sm font-mono font-bold', pnlColor(analysisResult.estimated_pnl))}>
-                    {analysisResult.estimated_pnl >= 0 ? '+' : ''}{fmt.currency(analysisResult.estimated_pnl)}
+                  <p className={cn('text-sm font-mono font-bold', pnlColor(visibleOpenTradeAnalysis.estimated_pnl))}>
+                    {visibleOpenTradeAnalysis.estimated_pnl >= 0 ? '+' : ''}{fmt.currency(visibleOpenTradeAnalysis.estimated_pnl)}
                   </p>
                 </div>
               </div>
 
               <div>
                 <p className="text-xs text-muted-foreground mb-2">Est. Return</p>
-                <p className={cn('text-sm font-mono font-bold', pnlColor(analysisResult.estimated_pnl))}>
-                  {analysisResult.estimated_pnl_percent >= 0 ? '+' : ''}{analysisResult.estimated_pnl_percent.toFixed(2)}%
+                <p className={cn('text-sm font-mono font-bold', pnlColor(visibleOpenTradeAnalysis.estimated_pnl))}>
+                  {visibleOpenTradeAnalysis.estimated_pnl_percent >= 0 ? '+' : ''}{visibleOpenTradeAnalysis.estimated_pnl_percent.toFixed(2)}%
                 </p>
               </div>
 
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">Bullish Factors</p>
                 <ul className="space-y-1">
-                  {analysisResult.bullish_factors.map((f, i) => (
+                  {visibleOpenTradeAnalysis.bullish_factors.map((f, i) => (
                     <li key={i} className="text-xs text-[#00d4a1] flex items-start gap-2">
                       <span>+</span> {f}
                     </li>
@@ -536,7 +543,7 @@ export function TradeDetailPage() {
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">Bearish Factors</p>
                 <ul className="space-y-1">
-                  {analysisResult.bearish_factors.map((f, i) => (
+                  {visibleOpenTradeAnalysis.bearish_factors.map((f, i) => (
                     <li key={i} className="text-xs text-[#ff4d6d] flex items-start gap-2">
                       <span>−</span> {f}
                     </li>
@@ -546,28 +553,28 @@ export function TradeDetailPage() {
 
               <div>
                 <p className="text-xs text-muted-foreground mb-2">Technical Outlook</p>
-                <p className="text-sm text-foreground/80">{analysisResult.technical_outlook}</p>
+                <p className="text-sm text-foreground/80">{visibleOpenTradeAnalysis.technical_outlook}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Recommendation</p>
-                  <p className="text-sm font-mono font-bold capitalize text-primary">{analysisResult.recommendation}</p>
+                  <p className="text-sm font-mono font-bold capitalize text-primary">{visibleOpenTradeAnalysis.recommendation}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Confidence</p>
-                  <p className="text-sm font-mono font-bold capitalize">{analysisResult.confidence}</p>
+                  <p className="text-sm font-mono font-bold capitalize">{visibleOpenTradeAnalysis.confidence}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/50">
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Resistance</p>
-                  <p className="text-sm font-mono">{fmt.currency(analysisResult.next_key_levels.resistance, 2)}</p>
+                  <p className="text-sm font-mono">{fmt.currency(visibleOpenTradeAnalysis.next_key_levels.resistance, 2)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Support</p>
-                  <p className="text-sm font-mono">{fmt.currency(analysisResult.next_key_levels.support, 2)}</p>
+                  <p className="text-sm font-mono">{fmt.currency(visibleOpenTradeAnalysis.next_key_levels.support, 2)}</p>
                 </div>
               </div>
             </div>
