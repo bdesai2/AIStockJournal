@@ -24,7 +24,7 @@ export const vercelHeaders = [
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' data: https:",
           "font-src 'self' data:",
-          "connect-src 'self' https://www.google-analytics.com https://api.anthropic.com https://supabase.co",
+          "connect-src 'self' https://www.google-analytics.com https://api.anthropic.com https://*.supabase.co wss://*.supabase.co",
           "frame-src 'self' https://accounts.google.com",
           "base-uri 'self'",
           "form-action 'self'",
