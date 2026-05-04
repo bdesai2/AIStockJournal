@@ -45,6 +45,7 @@ export const db = {
   screenshots: () => supabase.from('trade_screenshots'),
   executions: () => supabase.from('trade_executions'),
   digests: () => supabase.from('weekly_digests'),
+  openPositionAnalyses: () => supabase.from('open_position_analyses'),
   strategies: () => supabase.from('strategies'),
   strategyScreenshots: () => supabase.from('strategy_screenshots'),
   audit_logs: () => supabase.from('audit_logs'),

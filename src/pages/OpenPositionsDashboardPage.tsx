@@ -26,16 +26,10 @@ interface AnalysisResponse {
   recommendations: string[]
 }
 
-interface CachedAnalysisPayload {
+interface PersistedOpenPositionAnalysis {
   signature: string
-  cachedAt: string
+  generated_at: string
   analysis: AnalysisResponse
-}
-
-const ANALYSIS_CACHE_PREFIX = 'open_positions_analysis_v2'
-
-function getCacheKey(userId: string, accountId: string): string {
-  return `${ANALYSIS_CACHE_PREFIX}:${userId}:${accountId}`
 }
 
 function buildOpenTradesSignature(openTrades: Trade[]): string {
@@ -157,7 +151,7 @@ export function OpenPositionsDashboardPage() {
     }))
   }, [openTrades])
 
-  // Load cached analysis for the current open-trades snapshot.
+  // Load persisted analysis for the current open-trades snapshot.
   // Analysis refresh is manual and only triggered by button click.
   useEffect(() => {
     if (!user?.id || !selectedAccountId) {
@@ -166,27 +160,44 @@ export function OpenPositionsDashboardPage() {
       return
     }
 
-    const key = getCacheKey(user.id, selectedAccountId)
+    let cancelled = false
 
-    try {
-      const raw = window.localStorage.getItem(key)
-      if (!raw) {
+    const loadPersistedAnalysis = async () => {
+      const { data, error } = await supabase
+        .from('open_position_analyses')
+        .select('signature, generated_at, analysis')
+        .eq('user_id', user.id)
+        .eq('account_id', selectedAccountId)
+        .maybeSingle<PersistedOpenPositionAnalysis>()
+
+      if (cancelled) return
+
+      if (error) {
+        console.error('Failed to load open positions analysis:', error)
         setAnalysis(null)
         setCachedAt(null)
         return
       }
 
-      const parsed = JSON.parse(raw) as CachedAnalysisPayload
-      if (parsed.signature === openTradesSignature) {
-        setAnalysis(parsed.analysis)
-        setCachedAt(parsed.cachedAt)
+      if (!data) {
+        setAnalysis(null)
+        setCachedAt(null)
+        return
+      }
+
+      if (data.signature === openTradesSignature) {
+        setAnalysis(data.analysis)
+        setCachedAt(data.generated_at)
       } else {
         setAnalysis(null)
         setCachedAt(null)
       }
-    } catch {
-      setAnalysis(null)
-      setCachedAt(null)
+    }
+
+    void loadPersistedAnalysis()
+
+    return () => {
+      cancelled = true
     }
   }, [user?.id, selectedAccountId, openTradesSignature])
 
@@ -222,13 +233,32 @@ export function OpenPositionsDashboardPage() {
       const data: AnalysisResponse = await response.json()
       setAnalysis(data)
 
-      const cachePayload: CachedAnalysisPayload = {
-        signature: buildOpenTradesSignature(openTradesArr),
-        cachedAt: new Date().toISOString(),
+      const signature = buildOpenTradesSignature(openTradesArr)
+      const generatedAt = new Date().toISOString()
+
+      const { error: persistError } = await supabase
+        .from('open_position_analyses')
+        .upsert({
+          user_id: user.id,
+          account_id: selectedAccountId,
+          signature,
+          generated_at: generatedAt,
+          analysis: data,
+          updated_at: generatedAt,
+        }, {
+          onConflict: 'user_id,account_id',
+        })
+
+      if (persistError) {
+        console.error('Failed to persist open positions analysis:', persistError)
+      }
+
+      const cachePayload: PersistedOpenPositionAnalysis = {
+        signature,
+        generated_at: generatedAt,
         analysis: data,
       }
-      window.localStorage.setItem(getCacheKey(user.id, selectedAccountId), JSON.stringify(cachePayload))
-      setCachedAt(cachePayload.cachedAt)
+      setCachedAt(cachePayload.generated_at)
     } catch (err) {
       console.error('Analysis error:', err)
       setError(err instanceof Error ? err.message : 'Failed to analyze portfolio')
@@ -305,10 +335,10 @@ export function OpenPositionsDashboardPage() {
           <p className="mt-2 text-3xl font-semibold">{portfolioStats.totalPositions}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Analysis Cache</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Analysis Status</p>
           <p className="mt-2 text-sm font-medium capitalize">{portfolioStats.cachedStatus}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {cachedAt ? `Cached ${new Date(cachedAt).toLocaleString()}` : 'No cached analysis for current positions'}
+            {cachedAt ? `Saved ${new Date(cachedAt).toLocaleString()}` : 'No saved analysis for current positions'}
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
@@ -573,7 +603,7 @@ export function OpenPositionsDashboardPage() {
 
       {!loading && !error && !analysis && openTrades.length > 0 && (
         <div className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">
-          Cached analysis is not available for this exact open-trade snapshot. Click Generate Analysis when you want a refresh.
+          Saved analysis is not available for this exact open-trade snapshot. Click Generate Analysis when you want a refresh.
         </div>
       )}
 
