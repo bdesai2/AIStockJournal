@@ -19,6 +19,12 @@ function nowLocal() {
   return d.toISOString().slice(0, 16)
 }
 
+const QTY_EPSILON = 1e-6
+
+function formatQuantityForInput(value: number): string {
+  return value.toFixed(6).replace(/\.?0+$/, '')
+}
+
 export function ExecutionsCard({ trade }: Props) {
   const { user } = useAuthStore()
   const { addExecution, updateExecution, deleteExecution, updateTrade } = useTradeStore()
@@ -66,15 +72,25 @@ export function ExecutionsCard({ trade }: Props) {
   const totalDividend = executions
     .reduce((s, e) => s + (e.dividend ?? 0), 0)
 
+  const netPositionQty = totalBought - totalSold
+  const closeAllQty =
+    form.action === 'sell' && netPositionQty > QTY_EPSILON
+      ? netPositionQty
+      : form.action === 'buy' && netPositionQty < -QTY_EPSILON
+      ? Math.abs(netPositionQty)
+      : null
+
   const handleSave = async () => {
-    if (!user?.id || !form.quantity || !form.price) return
+    const quantity = parseFloat(form.quantity)
+    const price = parseFloat(form.price)
+    if (!user?.id || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(price) || price < 0) return
     setSaving(true)
     setError(null)
     const newExecution = {
       action: form.action,
       datetime: new Date(form.datetime).toISOString(),
-      quantity: parseFloat(form.quantity),
-      price: parseFloat(form.price),
+      quantity,
+      price,
       fee: form.fee ? parseFloat(form.fee) : 0,
       dividend: form.dividend ? parseFloat(form.dividend) : 0,
     } as TradeExecution
@@ -350,13 +366,22 @@ export function ExecutionsCard({ trade }: Props) {
                 <label className="text-xs text-muted-foreground block mb-1">Quantity</label>
                 <input
                   type="number"
-                  step="1"
+                  step="0.000001"
                   min="0"
                   placeholder="100"
                   value={form.quantity}
                   onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
                   className={inputClass}
                 />
+                {closeAllQty != null && (
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, quantity: formatQuantityForInput(closeAllQty) }))}
+                    className="mt-1 text-[11px] text-primary hover:text-primary/80"
+                  >
+                    Use all open ({formatQuantityForInput(closeAllQty)})
+                  </button>
+                )}
               </div>
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">Price</label>
@@ -399,7 +424,13 @@ export function ExecutionsCard({ trade }: Props) {
             <div className="flex gap-2 pt-1">
               <button
                 onClick={handleSave}
-                disabled={saving || !form.quantity || !form.price}
+                disabled={
+                  saving ||
+                  !Number.isFinite(parseFloat(form.quantity)) ||
+                  parseFloat(form.quantity) <= 0 ||
+                  !Number.isFinite(parseFloat(form.price)) ||
+                  parseFloat(form.price) < 0
+                }
                 className="flex-1 bg-primary text-primary-foreground rounded-md py-1.5 text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
                 {saving ? 'Saving…' : 'Save'}
@@ -482,7 +513,7 @@ export function ExecutionsCard({ trade }: Props) {
                         <label className="text-[10px] text-muted-foreground block mb-1">Quantity</label>
                         <input
                           type="number"
-                          step="1"
+                          step="0.000001"
                           min="0"
                           value={editForm.quantity}
                           onChange={(e) => setEditForm((f) => ({ ...f, quantity: e.target.value }))}

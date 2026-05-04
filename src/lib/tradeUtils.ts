@@ -480,6 +480,8 @@ export interface ExecutionSummary {
   exitDate: string | null
 }
 
+const EXECUTION_QTY_EPSILON = 1e-6
+
 export function calcExecutionsSummary(
   executions: TradeExecution[],
   assetType: AssetType = 'stock'
@@ -511,9 +513,9 @@ export function calcExecutionsSummary(
           realizedPnl += (lot.price - exec.price) * filled * multiplier
           lot.qty -= filled
           toClose -= filled
-          if (lot.qty <= 0) shortLots.shift()
+          if (lot.qty <= EXECUTION_QTY_EPSILON) shortLots.shift()
         }
-        if (toClose > 0) {
+        if (toClose > EXECUTION_QTY_EPSILON) {
           if (!entryDate) entryDate = exec.datetime
           longLots.push({ qty: toClose, price: exec.price })
         }
@@ -533,9 +535,9 @@ export function calcExecutionsSummary(
           realizedPnl += (exec.price - lot.price) * filled * multiplier
           lot.qty -= filled
           toClose -= filled
-          if (lot.qty <= 0) longLots.shift()
+          if (lot.qty <= EXECUTION_QTY_EPSILON) longLots.shift()
         }
-        if (toClose > 0) {
+        if (toClose > EXECUTION_QTY_EPSILON) {
           if (!entryDate) entryDate = exec.datetime
           shortLots.push({ qty: toClose, price: exec.price })
         }
@@ -549,8 +551,10 @@ export function calcExecutionsSummary(
 
   realizedPnl -= totalFees
 
-  const netLongQty = longLots.reduce((s, l) => s + l.qty, 0)
-  const netShortQty = shortLots.reduce((s, l) => s + l.qty, 0)
+  const netLongQtyRaw = longLots.reduce((s, l) => s + l.qty, 0)
+  const netShortQtyRaw = shortLots.reduce((s, l) => s + l.qty, 0)
+  const netLongQty = netLongQtyRaw <= EXECUTION_QTY_EPSILON ? 0 : netLongQtyRaw
+  const netShortQty = netShortQtyRaw <= EXECUTION_QTY_EPSILON ? 0 : netShortQtyRaw
   const netQty = netLongQty + netShortQty
 
   const openLots = netLongQty > 0 ? longLots : shortLots
@@ -560,7 +564,7 @@ export function calcExecutionsSummary(
 
   // Status: treat any still-open position as "open"; fully exited as "closed".
   const status: ExecutionSummary['status'] =
-    executions.length > 0 && netQty === 0 ? 'closed' : 'open'
+    executions.length > 0 && netQty <= EXECUTION_QTY_EPSILON ? 'closed' : 'open'
 
   return { netQty, avgCostBasis, realizedPnl, totalFees, status, entryDate, exitDate }
 }
