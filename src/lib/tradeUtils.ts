@@ -480,12 +480,15 @@ export interface ExecutionSummary {
   exitDate: string | null
 }
 
-const EXECUTION_QTY_EPSILON = 1e-6
+const EXECUTION_QTY_EPSILON_DEFAULT = 1e-6
+const EXECUTION_QTY_EPSILON_STOCK = 0.002
 
 export function calcExecutionsSummary(
   executions: TradeExecution[],
   assetType: AssetType = 'stock'
 ): ExecutionSummary {
+  const qtyEpsilon =
+    assetType === 'stock' ? EXECUTION_QTY_EPSILON_STOCK : EXECUTION_QTY_EPSILON_DEFAULT
   const multiplier = assetType === 'option' ? 100 : 1
   const sorted = [...executions].sort(
     (a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime()
@@ -513,9 +516,9 @@ export function calcExecutionsSummary(
           realizedPnl += (lot.price - exec.price) * filled * multiplier
           lot.qty -= filled
           toClose -= filled
-          if (lot.qty <= EXECUTION_QTY_EPSILON) shortLots.shift()
+          if (lot.qty <= qtyEpsilon) shortLots.shift()
         }
-        if (toClose > EXECUTION_QTY_EPSILON) {
+        if (toClose > qtyEpsilon) {
           if (!entryDate) entryDate = exec.datetime
           longLots.push({ qty: toClose, price: exec.price })
         }
@@ -535,9 +538,9 @@ export function calcExecutionsSummary(
           realizedPnl += (exec.price - lot.price) * filled * multiplier
           lot.qty -= filled
           toClose -= filled
-          if (lot.qty <= EXECUTION_QTY_EPSILON) longLots.shift()
+          if (lot.qty <= qtyEpsilon) longLots.shift()
         }
-        if (toClose > EXECUTION_QTY_EPSILON) {
+        if (toClose > qtyEpsilon) {
           if (!entryDate) entryDate = exec.datetime
           shortLots.push({ qty: toClose, price: exec.price })
         }
@@ -553,8 +556,8 @@ export function calcExecutionsSummary(
 
   const netLongQtyRaw = longLots.reduce((s, l) => s + l.qty, 0)
   const netShortQtyRaw = shortLots.reduce((s, l) => s + l.qty, 0)
-  const netLongQty = netLongQtyRaw <= EXECUTION_QTY_EPSILON ? 0 : netLongQtyRaw
-  const netShortQty = netShortQtyRaw <= EXECUTION_QTY_EPSILON ? 0 : netShortQtyRaw
+  const netLongQty = netLongQtyRaw <= qtyEpsilon ? 0 : netLongQtyRaw
+  const netShortQty = netShortQtyRaw <= qtyEpsilon ? 0 : netShortQtyRaw
   const netQty = netLongQty + netShortQty
 
   const openLots = netLongQty > 0 ? longLots : shortLots
@@ -564,7 +567,7 @@ export function calcExecutionsSummary(
 
   // Status: treat any still-open position as "open"; fully exited as "closed".
   const status: ExecutionSummary['status'] =
-    executions.length > 0 && netQty <= EXECUTION_QTY_EPSILON ? 'closed' : 'open'
+    executions.length > 0 && netQty <= qtyEpsilon ? 'closed' : 'open'
 
   return { netQty, avgCostBasis, realizedPnl, totalFees, status, entryDate, exitDate }
 }

@@ -20,6 +20,7 @@ function nowLocal() {
 }
 
 const QTY_EPSILON = 1e-6
+const DISPLAY_QTY_EPSILON_STOCK = 0.002
 
 function formatQuantityForInput(value: number): string {
   return value.toFixed(6).replace(/\.?0+$/, '')
@@ -72,11 +73,15 @@ export function ExecutionsCard({ trade }: Props) {
   const totalDividend = executions
     .reduce((s, e) => s + (e.dividend ?? 0), 0)
 
-  const netPositionQty = totalBought - totalSold
+  const displayQtyEpsilon = trade.asset_type === 'stock' ? DISPLAY_QTY_EPSILON_STOCK : QTY_EPSILON
+  const rawOpenQty = totalBought - totalSold
+  const openQtyDisplay = Math.abs(rawOpenQty) <= displayQtyEpsilon ? 0 : rawOpenQty
+
+  const netPositionQty = openQtyDisplay
   const closeAllQty =
-    form.action === 'sell' && netPositionQty > QTY_EPSILON
+    form.action === 'sell' && netPositionQty > displayQtyEpsilon
       ? netPositionQty
-      : form.action === 'buy' && netPositionQty < -QTY_EPSILON
+      : form.action === 'buy' && netPositionQty < -displayQtyEpsilon
       ? Math.abs(netPositionQty)
       : null
 
@@ -243,7 +248,7 @@ export function ExecutionsCard({ trade }: Props) {
                   : 'bg-[#f0b429]/10 text-[#f0b429]'
               )}
             >
-              {summary.status.toUpperCase()} · {totalBought - totalSold} open
+              {summary.status.toUpperCase()} · {formatQuantityForInput(openQtyDisplay)} open
             </span>
           )}
         </div>
@@ -363,7 +368,21 @@ export function ExecutionsCard({ trade }: Props) {
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">Quantity</label>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="text-xs text-muted-foreground">Quantity</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (closeAllQty != null) {
+                        setForm((f) => ({ ...f, quantity: formatQuantityForInput(closeAllQty) }))
+                      }
+                    }}
+                    disabled={closeAllQty == null}
+                    className="rounded border border-primary/40 px-2 py-0.5 text-[11px] font-medium text-primary transition-colors hover:border-primary/70 hover:bg-primary/10 disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground"
+                  >
+                    All Open
+                  </button>
+                </div>
                 <input
                   type="number"
                   step="0.000001"
@@ -374,13 +393,7 @@ export function ExecutionsCard({ trade }: Props) {
                   className={inputClass}
                 />
                 {closeAllQty != null && (
-                  <button
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, quantity: formatQuantityForInput(closeAllQty) }))}
-                    className="mt-1 text-[11px] text-primary hover:text-primary/80"
-                  >
-                    Use all open ({formatQuantityForInput(closeAllQty)})
-                  </button>
+                  <p className="mt-1 text-[11px] text-muted-foreground">Open qty: {formatQuantityForInput(closeAllQty)}</p>
                 )}
               </div>
               <div>
@@ -737,7 +750,9 @@ export function ExecutionsCard({ trade }: Props) {
                 </span>
               </div>
               <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground/70">
-                <span>Bought {totalBought} · Sold {totalSold} · Open {totalBought - totalSold}</span>
+                <span>
+                  Bought {formatQuantityForInput(totalBought)} · Sold {formatQuantityForInput(totalSold)} · Open {formatQuantityForInput(openQtyDisplay)}
+                </span>
                 <span>Avg cost: {summary.avgCostBasis > 0 ? fmt.currency(summary.avgCostBasis, 4) : '—'}</span>
               </div>
               {totalDividend > 0 && (
