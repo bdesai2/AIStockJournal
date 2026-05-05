@@ -152,7 +152,7 @@ See `Privacy Policy` for full details.
 
 If you discover a security vulnerability, **please do not open a public GitHub issue**. Instead:
 
-1. **Email**: security@stockjournal.app
+1. **Email**: bdesai2@gmail.com
 2. **Include**:
    - Description of the vulnerability
    - Steps to reproduce
@@ -168,7 +168,7 @@ If you discover a security vulnerability, **please do not open a public GitHub i
 
 ### Non-Vulnerability Inquiries
 For security questions or advice (not a specific vulnerability):
-- Email: security@stockjournal.app
+- Email: bdesai2@gmail.com
 - Include context and details
 
 ## Best Practices for Users
@@ -189,7 +189,7 @@ For security questions or advice (not a specific vulnerability):
 - If you suspect unauthorized access:
   1. Change your password immediately
   2. Sign out all sessions (if available)
-  3. Contact support: support@stockjournal.app
+  3. Contact support: bdesai2@gmail.com
 
 ## Compliance
 
@@ -216,4 +216,4 @@ Last Updated: April 17, 2026
 
 ---
 
-**Questions?** Contact security@stockjournal.app
+**Questions?** Contact bdesai2@gmail.com

@@ -1,6 +1,6 @@
 export function PrivacyPolicyPage() {
   return (
-    <div className="min-h-screen bg-background py-12 px-4">
+    <div className="bg-background py-12 px-4">
       <div className="max-w-3xl mx-auto">
         <h1 className="text-4xl font-display tracking-wider mb-2">PRIVACY POLICY</h1>
         <p className="text-sm text-muted-foreground mb-8">Last Updated: April 17, 2026</p>
@@ -169,7 +169,7 @@ export function PrivacyPolicyPage() {
           <section>
             <h2 className="text-2xl font-display tracking-wider mb-3">11. Contact Us</h2>
             <p className="text-sm">
-              For privacy inquiries or data requests, contact us at: <strong>privacy@stockjournal.app</strong>
+              For privacy inquiries or data requests, contact us at: <strong>bdesai2@gmail.com</strong>
             </p>
           </section>
 

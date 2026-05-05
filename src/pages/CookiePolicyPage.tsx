@@ -198,7 +198,7 @@ export function CookiePolicyPage() {
           <section>
             <h2 className="text-2xl font-display tracking-wider mb-3">12. Contact</h2>
             <p className="text-sm">
-              Questions about our use of cookies? Contact us at: <strong>privacy@stockjournal.app</strong>
+              Questions about our use of cookies? Contact us at: <strong>bdesai2@gmail.com</strong>
             </p>
           </section>
 

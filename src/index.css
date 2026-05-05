@@ -14,7 +14,7 @@
     --popover: 222 47% 8%;
     --popover-foreground: 210 40% 96%;
 
-    --primary: 165 100% 42%;       /* #00d4a1 — profit green */
+    --primary: 28 95% 58%;       /* #2EC5FA — Electric Cyan-Blue action color */
     --primary-foreground: 222 47% 5%;
 
     --secondary: 222 47% 13%;
@@ -31,7 +31,7 @@
 
     --border: 222 47% 14%;
     --input: 222 47% 12%;
-    --ring: 165 100% 42%;
+    --ring: 28 95% 58%;
 
     --radius: 0.5rem;
   }
@@ -146,4 +146,9 @@
 }
 .recharts-tooltip-wrapper {
   outline: none !important;
+}
+
+/* Ensure chart hover overlays follow theme accent instead of Recharts defaults */
+.recharts-tooltip-cursor {
+  fill: hsl(var(--accent)) !important;
 }

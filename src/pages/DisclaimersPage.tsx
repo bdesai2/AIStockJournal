@@ -1,6 +1,6 @@
 export function DisclaimersPage() {
   return (
-    <div className="min-h-screen bg-background py-12 px-4">
+    <div className="bg-background py-12 px-4">
       <div className="max-w-3xl mx-auto">
         <h1 className="text-4xl font-display tracking-wider mb-2">DISCLAIMERS</h1>
         <p className="text-sm text-muted-foreground mb-8">Important Risk & Liability Notices</p>

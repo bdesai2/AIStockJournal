@@ -139,7 +139,7 @@ export function TermsOfServicePage() {
           <section>
             <h2 className="text-2xl font-display tracking-wider mb-3">13. Contact</h2>
             <p className="text-sm">
-              Questions about these terms? Contact us at: <strong>legal@stockjournal.app</strong>
+              Questions about these terms? Contact us at: <strong>bdesai2@gmail.com</strong>
             </p>
           </section>
 
