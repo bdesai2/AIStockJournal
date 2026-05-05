@@ -109,9 +109,9 @@ export const useTradeStore = create<TradeState>((set, get) => ({
         screenshots: t.screenshots?.map((s) => {
           const newUrl = urlMap.get(s.storage_path)
           if (newUrl && newUrl !== s.url) {
-            console.log(`[fetchTrades] Updated URL for ${s.storage_path}`)
+            //console.log(`[fetchTrades] Updated URL for ${s.storage_path}`)
           } else if (!newUrl) {
-            console.warn(`[fetchTrades] No signed URL found for ${s.storage_path}`)
+            //console.warn(`[fetchTrades] No signed URL found for ${s.storage_path}`)
           }
           return {
             ...s,
