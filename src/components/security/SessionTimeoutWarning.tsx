@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { AlertTriangle, LogOut } from 'lucide-react'
 import { useSessionTimeout, formatTimeRemaining } from '@/hooks/useSessionTimeout'
 
@@ -6,16 +6,26 @@ export function SessionTimeoutWarning() {
   const [showWarning, setShowWarning] = useState(false)
   const [minutesRemaining, setMinutesRemaining] = useState(5)
   const { extendSession, setOnWarning, setOnTimeout } = useSessionTimeout()
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     setOnWarning(() => {
       setShowWarning(true)
+      setMinutesRemaining(5)
+
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current)
+      }
+
       // Update countdown every second
-      const interval = setInterval(() => {
+      countdownRef.current = setInterval(() => {
         setMinutesRemaining((prev) => {
           const newVal = prev - 1 / 60
           if (newVal <= 0) {
-            clearInterval(interval)
+            if (countdownRef.current) {
+              clearInterval(countdownRef.current)
+              countdownRef.current = null
+            }
             return 0
           }
           return newVal
@@ -26,6 +36,13 @@ export function SessionTimeoutWarning() {
     setOnTimeout(() => {
       // Will auto-logout via useSessionTimeout hook
     })
+
+    return () => {
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current)
+        countdownRef.current = null
+      }
+    }
   }, [setOnWarning, setOnTimeout])
 
   if (!showWarning) {
@@ -36,6 +53,10 @@ export function SessionTimeoutWarning() {
     extendSession()
     setShowWarning(false)
     setMinutesRemaining(5)
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current)
+      countdownRef.current = null
+    }
   }
 
   return (

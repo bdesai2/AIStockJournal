@@ -14,10 +14,6 @@ const DEFAULT_CONFIG: SessionConfig = {
   checkFrequency: 1000,
 }
 
-let timeoutTimer: NodeJS.Timeout | null = null
-let warningTimer: NodeJS.Timeout | null = null
-let lastActivityTime = Date.now()
-
 /**
  * Hook to manage session timeout
  * Shows expiry warning and auto-logs out after inactivity
@@ -25,33 +21,63 @@ let lastActivityTime = Date.now()
 export function useSessionTimeout(config: Partial<SessionConfig> = {}) {
   const { user } = useAuthStore()
   const mergedConfig = { ...DEFAULT_CONFIG, ...config }
+  const timeoutMs = mergedConfig.timeoutMinutes * 60 * 1000
+  const warningMs = mergedConfig.warningMinutes * 60 * 1000
+  const checkFrequency = mergedConfig.checkFrequency
+
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const lastActivityRef = useRef(Date.now())
+  const lastLightActivityRef = useRef(0)
+  const isSigningOutRef = useRef(false)
   const isWarningShownRef = useRef(false)
   const onWarningRef = useRef<(() => void) | null>(null)
   const onTimeoutRef = useRef<(() => void) | null>(null)
 
+  const markActivity = (force = false) => {
+    const now = Date.now()
+    if (!force && now - lastLightActivityRef.current < 15_000) {
+      return
+    }
+    lastLightActivityRef.current = now
+    lastActivityRef.current = now
+    isWarningShownRef.current = false
+  }
+
   // Register activity listener
   useEffect(() => {
-    const handleActivity = () => {
-      lastActivityTime = Date.now()
-      isWarningShownRef.current = false
+    const handleStrongActivity = () => markActivity(true)
+    const handleLightActivity = () => markActivity(false)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        markActivity(true)
+      }
     }
 
-    const events = [
-      'mousedown',
-      'keydown',
-      'scroll',
-      'touchstart',
-      'click',
-    ]
+    window.addEventListener('focus', handleStrongActivity)
+    document.addEventListener('visibilitychange', handleVisibility)
 
-    events.forEach((event) => {
-      document.addEventListener(event, handleActivity, { passive: true })
-    })
+    document.addEventListener('keydown', handleStrongActivity)
+    document.addEventListener('click', handleStrongActivity)
+    document.addEventListener('pointerdown', handleStrongActivity)
+
+    document.addEventListener('scroll', handleLightActivity, { passive: true })
+    document.addEventListener('mousemove', handleLightActivity, { passive: true })
+    document.addEventListener('touchstart', handleLightActivity, { passive: true })
+
+    // Start each mount from "active now" to avoid stale module-level timeouts.
+    markActivity(true)
 
     return () => {
-      events.forEach((event) => {
-        document.removeEventListener(event, handleActivity)
-      })
+      window.removeEventListener('focus', handleStrongActivity)
+      document.removeEventListener('visibilitychange', handleVisibility)
+
+      document.removeEventListener('keydown', handleStrongActivity)
+      document.removeEventListener('click', handleStrongActivity)
+      document.removeEventListener('pointerdown', handleStrongActivity)
+
+      document.removeEventListener('scroll', handleLightActivity)
+      document.removeEventListener('mousemove', handleLightActivity)
+      document.removeEventListener('touchstart', handleLightActivity)
     }
   }, [])
 
@@ -59,25 +85,31 @@ export function useSessionTimeout(config: Partial<SessionConfig> = {}) {
   useEffect(() => {
     if (!user?.id) {
       // User not logged in, clean up
-      if (timeoutTimer) clearTimeout(timeoutTimer)
-      if (warningTimer) clearTimeout(warningTimer)
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+      isSigningOutRef.current = false
       return
     }
 
-    // Clear existing timers
-    if (timeoutTimer) clearTimeout(timeoutTimer)
-    if (warningTimer) clearTimeout(warningTimer)
+    // New auth session should always start from now.
+    markActivity(true)
+
+    // Clear existing timer
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
 
     const checkSession = () => {
       const now = Date.now()
-      const inactiveMins = (now - lastActivityTime) / 1000 / 60
-      const timeoutMins = mergedConfig.timeoutMinutes
-      const warningMins = mergedConfig.warningMinutes
+      const inactiveMs = now - lastActivityRef.current
 
       // Show warning
       if (
-        inactiveMins >= timeoutMins - warningMins &&
-        inactiveMins < timeoutMins &&
+        inactiveMs >= timeoutMs - warningMs &&
+        inactiveMs < timeoutMs &&
         !isWarningShownRef.current
       ) {
         isWarningShownRef.current = true
@@ -87,21 +119,25 @@ export function useSessionTimeout(config: Partial<SessionConfig> = {}) {
       }
 
       // Auto logout
-      if (inactiveMins >= timeoutMins) {
+      if (inactiveMs >= timeoutMs && !isSigningOutRef.current) {
+        isSigningOutRef.current = true
         if (onTimeoutRef.current) {
           onTimeoutRef.current()
         }
-        handleSessionTimeout()
+        void handleSessionTimeout()
       }
     }
 
     checkSession()
-    timeoutTimer = setInterval(checkSession, mergedConfig.checkFrequency)
+    intervalRef.current = setInterval(checkSession, checkFrequency)
 
     return () => {
-      if (timeoutTimer) clearTimeout(timeoutTimer)
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
     }
-  }, [user?.id, mergedConfig])
+  }, [user?.id, timeoutMs, warningMs, checkFrequency])
 
   const handleSessionTimeout = async () => {
     await auth.signOut()
@@ -109,8 +145,7 @@ export function useSessionTimeout(config: Partial<SessionConfig> = {}) {
   }
 
   const extendSession = () => {
-    lastActivityTime = Date.now()
-    isWarningShownRef.current = false
+    markActivity(true)
   }
 
   const setOnWarning = (callback: () => void) => {
