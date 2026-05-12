@@ -252,8 +252,32 @@ export function NewTradePage() {
         strategy_tags: existingTrade.strategy_tags ?? [],
         primary_strategy_name: existingTrade.primary_strategy_name ?? undefined,
       } as TradeFormData)
+
+      // Sync selectedStrategyId dropdown with the form's primary_strategy_name
+      if (existingTrade.primary_strategy_name && strategies.length > 0) {
+        const matchingStrategy = strategies.find(s => s.name === existingTrade.primary_strategy_name)
+        if (matchingStrategy) {
+          setSelectedStrategyId(matchingStrategy.id)
+        }
+      } else {
+        setSelectedStrategyId('')
+      }
     }
-  }, [existingTrade, reset])
+  }, [existingTrade, reset, strategies])
+
+  // Sync selectedStrategyId with primary_strategy_name field changes (for observers)
+  const primaryStrategyName = watch('primary_strategy_name')
+  useEffect(() => {
+    if (!primaryStrategyName) {
+      setSelectedStrategyId('')
+      return
+    }
+    
+    const matchingStrategy = strategies.find(s => s.name === primaryStrategyName)
+    if (matchingStrategy) {
+      setSelectedStrategyId(matchingStrategy.id)
+    }
+  }, [primaryStrategyName, strategies])
 
   const [sectorLoading, setSectorLoading] = useState(false)
 

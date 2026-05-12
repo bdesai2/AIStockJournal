@@ -66,6 +66,29 @@ export interface PotentialTradeResult {
   model?: string
 }
 
+export interface GeneratedSetup {
+  symbol: string
+  direction: 'long' | 'short'
+  setup_grade: 'A+' | 'A' | 'A-'
+  thesis: string
+  entry: number
+  stop: number
+  target_1: number
+  target_2: number | null
+  risk_reward: number
+  confidence: 'low' | 'moderate' | 'high'
+  timeframe: 'intraday' | 'swing' | 'position'
+  catalyst: string
+  invalidation: string
+}
+
+export interface GenerateSetupsResult {
+  market_context: string
+  risk_notes: string[]
+  setups: GeneratedSetup[]
+  generated_at: string
+}
+
 // ─── HTTP Utility ─────────────────────────────────────────────────────────────
 
 async function post<T>(path: string, body: unknown): Promise<T> {
@@ -222,4 +245,17 @@ export const aiApi = {
     target_level?: number
     notes?: string
   }) => post<PotentialTradeResult>('/api/ai/potential-trade', params),
+
+  /**
+   * Generate high-conviction setup ideas from watchlist and constraints
+   */
+  generateSetups: (params: {
+    market_bias?: 'bullish' | 'bearish' | 'neutral'
+    timeframe?: 'intraday' | 'swing' | 'position'
+    risk_profile?: 'conservative' | 'balanced' | 'aggressive'
+    focus_sectors?: string[]
+    watchlist?: string[]
+    max_setups?: number
+    notes?: string
+  }) => post<GenerateSetupsResult>('/api/ai/generate-setups', params),
 }

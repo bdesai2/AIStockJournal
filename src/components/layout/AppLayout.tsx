@@ -14,6 +14,7 @@ import {
   WifiOff,
   Wifi,
   MonitorDown,
+  Sparkles,
 } from 'lucide-react'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { useInstallPrompt } from '@/hooks/useInstallPrompt'
@@ -47,6 +48,7 @@ import { aggregateStats } from '@/lib/tradeUtils'
 const NAV_ITEMS = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/open-positions', icon: Zap, label: 'Open Positions' },
+  { to: '/setup-generator', icon: Sparkles, label: 'A+ Setups' },
   { to: '/trades', icon: LineChart, label: 'Trades' },
   { to: '/journal', icon: BookOpen, label: 'Journal' },
   { to: '/strategies', icon: Zap, label: 'Strategies' },
@@ -55,11 +57,14 @@ const NAV_ITEMS = [
 const MOBILE_NAV_ITEMS = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/open-positions', icon: Zap, label: 'Open Positions' },
+  { to: '/setup-generator', icon: Sparkles, label: 'A+ Setups' },
   { to: '/trades', icon: LineChart, label: 'Trades' },
   { to: '/journal', icon: BookOpen, label: 'Journal' },
   { to: '/strategies', icon: Zap, label: 'Strategies' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
+
+const BETA_NAV_ROUTES = new Set(['/open-positions', '/setup-generator'])
 
 function getBreadcrumbs(pathname: string): Array<{ to: string; label: string }> {
   const parts = pathname.split('/').filter(Boolean)
@@ -75,6 +80,7 @@ function getBreadcrumbs(pathname: string): Array<{ to: string; label: string }> 
     let label = part
     if (part === 'dashboard') label = 'Dashboard'
     if (part === 'open-positions') label = 'Open Positions'
+    if (part === 'setup-generator') label = 'A+ Setups'
     if (part === 'trades') label = 'Trades'
     if (part === 'new') label = 'New Trade'
     if (part === 'journal') label = 'Journal'
@@ -265,6 +271,11 @@ export function AppLayout() {
                 <>
                   <Icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-primary' : '')} />
                   <span>{label}</span>
+                  {BETA_NAV_ROUTES.has(to) && (
+                    <span className="rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-amber-300">
+                      BETA
+                    </span>
+                  )}
                   {isActive && <ChevronRight className="w-3 h-3 ml-auto text-primary" />}
                 </>
               )}
@@ -547,7 +558,12 @@ export function AppLayout() {
             {({ isActive }) => (
               <>
                 <Icon className={`w-5 h-5 ${isActive ? 'text-primary' : ''}`} />
-                <span className="font-medium">{label}</span>
+                <span className="font-medium leading-none">{label}</span>
+                {BETA_NAV_ROUTES.has(to) && (
+                  <span className="rounded border border-amber-500/40 bg-amber-500/15 px-1 py-0.5 text-[8px] font-semibold tracking-wide text-amber-300 leading-none">
+                    BETA
+                  </span>
+                )}
               </>
             )}
           </NavLink>

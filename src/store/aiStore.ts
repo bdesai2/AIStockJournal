@@ -6,6 +6,7 @@ import { db, supabase } from '@/lib/supabase'
 import type { Trade } from '@/types'
 import { useNotificationStore } from '@/store/notificationStore'
 import { canAccess } from '@/lib/featureGates'
+import { calcExitPriceFromExecutions } from '@/lib/tradeUtils'
 
 // ─── State Interface ──────────────────────────────────────────────────────────
 
@@ -74,6 +75,15 @@ export const useAiStore = create<AiState>((set) => ({
       return
     }
 
+    // If trade is closed and missing exit_price, calculate from executions
+    const tradeForGrading = { ...trade }
+    if (trade.status === 'closed' && (!trade.exit_price || trade.exit_price === 0)) {
+      const calculatedExitPrice = calcExitPriceFromExecutions(trade)
+      if (calculatedExitPrice) {
+        tradeForGrading.exit_price = calculatedExitPrice
+      }
+    }
+
     // If we already have a non-expired grade and this is not an explicit re-grade,
     // just reuse the cached result to avoid unnecessary AI calls.
     const now = new Date()
@@ -87,7 +97,7 @@ export const useAiStore = create<AiState>((set) => ({
 
     set({ gradeLoading: true, gradeError: null })
     try {
-      const result = await aiApi.gradeTrade(trade)
+      const result = await aiApi.gradeTrade(tradeForGrading)
       const { updateTrade } = useTradeStore.getState()
 
       const analyzedAt = new Date()

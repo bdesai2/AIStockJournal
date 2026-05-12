@@ -314,8 +314,16 @@ export function OpenPositionsDashboardPage() {
     <div className="p-6 space-y-6 animate-in">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-display tracking-wider">OPEN POSITIONS</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-display tracking-wider">OPEN POSITIONS</h1>
+            <span className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-amber-300">
+              BETA
+            </span>
+          </div>
           <p className="text-sm text-muted-foreground">Review active trades first, then refresh AI portfolio analysis on demand.</p>
+          <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-200">
+            Beta notice: Open Positions is currently in beta testing. Results may not always be accurate and should be used as supporting context only.
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <button

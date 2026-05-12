@@ -1,6 +1,6 @@
 # Trade Reflection - Central Feature Registry
 
-Last updated: 2026-05-03
+Last updated: 2026-05-09
 Purpose: This is the canonical feature inventory and milestone status for the stock-journal app.
 
 ## Milestone Status Snapshot
@@ -12,9 +12,12 @@ Purpose: This is the canonical feature inventory and milestone status for the st
 - [x] M5 (core): PWA foundation and offline-first data flow
 - [x] M6.5: Subscription system (Free/Pro), Stripe, admin management
 - [x] M6 (majority): Legal pages, privacy controls, cookie consent, data export, session timeout, audit visibility
-- [ ] M5 (remaining polish): mobile/performance/report-export backlog items
-- [ ] M6 (remaining production hardening): deployment checklist and compliance verification tasks
-- [ ] M7 (remaining hardening): unresolved security audit items and validation tasks
+- [x] M8 (core): Open Positions dashboard, portfolio AI scoring, persisted per-trade AI analysis
+- [ ] M8 (planned phases): A+ setup generator flow and Supabase custom domain OAuth remediation
+- [x] M5 (remaining polish): mobile/performance/report-export backlog items
+- [x] M6 (remaining production hardening): deployment checklist and compliance verification tasks
+- [x] M7 (remaining hardening): unresolved security audit items and validation tasks
+- [ ] M8 (remaining hardening): validation suite, migration rollout checks, and release documentation
 
 ---
 
@@ -172,6 +175,21 @@ Purpose: This is the canonical feature inventory and milestone status for the st
 - [x] Notification toaster integration
 - [x] App footer with legal and compliance links
 
+### 16) Open Positions Intelligence (M8)
+
+- [x] Dedicated Open Positions page and route (`/open-positions`)
+- [x] App navigation and breadcrumb support for Open Positions
+- [x] Portfolio-level open-trades AI endpoint (`/api/ai/analyze-open-trades`)
+- [x] Per-trade scorecard fields in portfolio response (entry/current/pnl/grade/action)
+- [x] Option-aware pricing behavior in open-trades scorecards (no misleading stock fallback)
+- [x] Manual refresh + local cache for portfolio analysis by account/trade signature
+- [x] Expanded open-trade rows with AI detail panels
+- [x] Per-trade open analysis persistence in DB (`open_trade_analysis`, timestamp, model)
+- [x] Lazy-load behavior: expanding a trade fetches/saves AI analysis if missing
+- [x] Expanded-row stability across multiple open rows (per-row expansion/loading/error state)
+- [x] Cache invalidation fix so per-trade AI saves do not clear overall portfolio analysis
+- [x] Trade detail page fallback to persisted open-trade AI analysis
+
 
 ## Not Yet Completed (Tracked Backlog)
 
@@ -201,6 +219,19 @@ Purpose: This is the canonical feature inventory and milestone status for the st
 - [x] Complete unresolved high/medium checklist items still open
 - [x] Run and document retest evidence for fixed vulnerabilities
 - [x] Final production security review and approval gate
+
+### M8 Open Positions Hardening Residuals
+
+- [x] Run full E2E validation for Open Positions flows (single/multi-account, mixed stock/option positions)
+- [x] Verify migration `015_open_trade_analysis_persistence.sql` is applied in all environments
+- [ ] Add explicit regression checklist for per-row expansion state and persisted analysis rendering
+- [ ] Add API failure-path tests for per-trade lazy analysis fetch/save (network, auth, rate limits)
+- [ ] Document operational limits of option contract pricing and fallback logic in user-facing docs
+
+### M8 Planned Follow-on Phases
+
+- [x] Phase 4: A+ Setup Generator page + `/api/ai/generate-setups` endpoint
+- [ ] Phase 5: Supabase custom domain OAuth fix
 
 ---
 
