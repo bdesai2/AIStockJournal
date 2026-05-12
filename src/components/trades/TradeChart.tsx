@@ -1,5 +1,6 @@
 import type { Trade } from '@/types'
-import { ArrowUpRight, ArrowDownRight, ExternalLink } from 'lucide-react'
+import { ArrowUpRight, ArrowDownRight, ExternalLink, TrendingUp, TrendingDown } from 'lucide-react'
+import { pnlColor, calcPnlPercent } from '@/lib/tradeUtils'
 
 interface TradeChartProps {
   trade: Trade
@@ -50,17 +51,26 @@ function getTradeTypeLabel(trade: Trade): string {
 }
 
 /**
- * Calculate chart range based on interval
- * 5-min (scalp): 1 day before entry
- * 1-hour: 2 days before entry
+ * Calculate P&L display values
  */
-function getChartLookback(interval: string): number {
-  // 5-minute charts: show 1 day before
-  if (interval === '5') {
-    return 1
-  }
-  // 1-hour and others: show 2 days before
-  return 2
+function calculatePnL(trade: Trade) {
+  const pnl = trade.net_pnl ?? 0
+  const pnlPct = calcPnlPercent(trade)
+  const isProfit = pnl >= 0
+
+  return { pnl, pnlPct, isProfit }
+}
+
+/**
+ * Format currency for display
+ */
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)
 }
 
 export function TradeChart({ trade }: TradeChartProps) {
@@ -69,10 +79,12 @@ export function TradeChart({ trade }: TradeChartProps) {
   const isLong = trade.direction === 'long'
   const userTimezone = getUserTimezone()
   const lookbackDays = getChartLookback(interval)
+  const { pnl, pnlPct, isProfit } = calculatePnL(trade)
 
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
+      <div className="space-y-2 px-4 py-3 border-b border-border/60">
+        {/* Header row 1: Title + Type + Timezone */}
         <div className="flex items-center gap-3">
           <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Price Action — {trade.ticker}
@@ -93,27 +105,74 @@ export function TradeChart({ trade }: TradeChartProps) {
           </span>
         </div>
 
-        {/* Entry/Exit price indicator */}
-        <div className="flex items-center gap-4 text-xs">
-          <div>
-            <p className="text-muted-foreground">Entry</p>
-            <p className="font-mono font-semibold text-green-400">${trade.entry_price.toFixed(2)}</p>
-          </div>
-          {trade.exit_price && (
-            <>
-              <div className="w-px h-8 bg-border/50" />
+        {/* Header row 2: Entry/Exit/P&L */}
+        <div className="flex items-center justify-between gap-4">
+          {/* Entry Price */}
+          <div className="flex items-center gap-3">
+            <div>
+              <p className="text-[10px] text-muted-foreground font-mono uppercase">Entry</p>
+              <p className="font-mono font-semibold text-green-400 text-sm">
+                ${trade.entry_price.toFixed(2)}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                {new Date(trade.entry_date).toLocaleString()}
+              </p>
+            </div>
+
+            {/* Divider */}
+            <div className="h-12 w-px bg-border/50" />
+
+            {/* Exit Price (if closed) */}
+            {trade.exit_price ? (
               <div>
-                <p className="text-muted-foreground">Exit</p>
-                <p className={`font-mono font-semibold ${isLong ? 'text-red-400' : 'text-green-400'}`}>
+                <p className="text-[10px] text-muted-foreground font-mono uppercase">Exit</p>
+                <p className={`font-mono font-semibold text-sm ${isLong ? 'text-red-400' : 'text-green-400'}`}>
                   ${trade.exit_price.toFixed(2)}
                 </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {new Date(trade.exit_date!).toLocaleString()}
+                </p>
               </div>
-            </>
-          )}
+            ) : (
+              <div>
+                <p className="text-[10px] text-muted-foreground font-mono uppercase">Status</p>
+                <p className="font-mono font-semibold text-yellow-400 text-sm">OPEN</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {Math.round((Date.now() - new Date(trade.entry_date).getTime()) / (1000 * 60))} min held
+                </p>
+              </div>
+            )}
+
+            {/* Divider */}
+            <div className="h-12 w-px bg-border/50" />
+
+            {/* P&L Badge */}
+            <div className={`px-3 py-2 rounded-md flex flex-col ${pnlColor(pnl)}`}>
+              <p className="text-[10px] font-mono uppercase text-muted-foreground">P&L</p>
+              <p className="font-mono font-bold text-base">
+                {isProfit ? '+' : ''}{formatCurrency(pnl)}
+              </p>
+              <p className="text-[10px] font-mono mt-0.5">
+                {isProfit ? '+' : ''}{pnlPct?.toFixed(2)}%
+              </p>
+            </div>
+          </div>
+
+          {/* Position Indicator */}
+          <div className="flex items-center gap-2">
+            {isLong ? (
+              <TrendingUp className="w-5 h-5 text-green-400" />
+            ) : (
+              <TrendingDown className="w-5 h-5 text-red-400" />
+            )}
+            <span className="text-xs font-semibold">
+              {isLong ? 'LONG POSITION' : 'SHORT POSITION'}
+            </span>
+          </div>
         </div>
       </div>
 
-      <div style={{ height: '500px', overflow: 'hidden', position: 'relative' }}>
+      <div style={{ height: '500px', overflow: 'hidden', position: 'relative', background: '#000' }}>
         <iframe
           src={`https://www.tradingview.com/widgetembed/?symbol=${trade.ticker}&interval=${interval}&timezone=${encodeURIComponent(userTimezone)}&theme=dark&style=1&locale=en&hide_side_toolbar=0&allow_symbol_change=0&container_id=tradingview_${trade.id}`}
           title={`${trade.ticker} Chart`}
@@ -125,22 +184,41 @@ export function TradeChart({ trade }: TradeChartProps) {
           allow="clipboard-read; clipboard-write"
         />
 
-        {/* Trade annotation overlay */}
-        <div className="absolute top-4 right-4 z-10 bg-black/60 backdrop-blur-sm rounded-lg border border-white/10 p-3 text-xs space-y-2">
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-2 h-2 rounded-full ${isLong ? 'bg-green-400' : 'bg-red-400'}`}
-            />
-            <span className="text-muted-foreground">
-              {isLong ? 'Long Position' : 'Short Position'}
-            </span>
+        {/* Chart Overlay: Entry/Exit markers */}
+        <div className="absolute top-4 left-4 z-10 space-y-2 pointer-events-none">
+          {/* Entry Marker */}
+          <div className="flex items-center gap-2 bg-green-500/20 backdrop-blur-sm border border-green-500/50 rounded px-2 py-1">
+            <div className="w-2 h-2 rounded-full bg-green-400" />
+            <div className="text-[10px] font-mono">
+              <div className="text-green-400 font-semibold">ENTRY</div>
+              <div className="text-green-300">${trade.entry_price.toFixed(2)}</div>
+            </div>
           </div>
-          <div className="text-[10px] text-muted-foreground space-y-1 border-t border-white/10 pt-2">
-            <div>Entry: {new Date(trade.entry_date).toLocaleDateString()} {new Date(trade.entry_date).toLocaleTimeString()}</div>
-            {trade.exit_date && (
-              <div>Exit: {new Date(trade.exit_date).toLocaleDateString()} {new Date(trade.exit_date).toLocaleTimeString()}</div>
-            )}
-          </div>
+
+          {/* Exit Marker (if trade is closed) */}
+          {trade.exit_price && (
+            <div className={`flex items-center gap-2 backdrop-blur-sm border rounded px-2 py-1 ${
+              isLong
+                ? 'bg-red-500/20 border-red-500/50'
+                : 'bg-green-500/20 border-green-500/50'
+            }`}>
+              <div className={`w-2 h-2 rounded-full ${isLong ? 'bg-red-400' : 'bg-green-400'}`} />
+              <div className="text-[10px] font-mono">
+                <div className={isLong ? 'text-red-400 font-semibold' : 'text-green-400 font-semibold'}>EXIT</div>
+                <div className={isLong ? 'text-red-300' : 'text-green-300'}>${trade.exit_price.toFixed(2)}</div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* P&L Tag on Chart */}
+        <div className={`absolute top-4 right-4 z-10 px-3 py-2 rounded-md backdrop-blur-sm border font-mono text-sm pointer-events-none ${
+          isProfit
+            ? 'bg-green-500/20 border-green-500/50 text-green-300'
+            : 'bg-red-500/20 border-red-500/50 text-red-300'
+        }`}>
+          <div className="font-semibold">{isProfit ? '+' : ''}{formatCurrency(pnl)}</div>
+          <div className="text-[10px]">{isProfit ? '+' : ''}{pnlPct?.toFixed(2)}%</div>
         </div>
       </div>
 
