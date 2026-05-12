@@ -592,6 +592,7 @@ export const STRATEGY_TAG_LABELS: Record<string, string> = {
   cash_secured_put: 'Cash Secured Put',
   straddle: 'Straddle',
   strangle: 'Strangle',
+  big_money_plays: 'Big Money Plays',
   custom: 'Custom',
 }
 
