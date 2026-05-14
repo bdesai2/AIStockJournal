@@ -221,7 +221,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       let tierName = 'free'
       if (subData.tier_id) {
         //console.log('[fetchSubscription] Looking up tier for tier_id:', subData.tier_id)
-        const { data: tierData, error: tierError } = await supabase
+        const { data: tierData } = await supabase
           .from('subscription_tiers')
           .select('name')
           .eq('id', subData.tier_id)
