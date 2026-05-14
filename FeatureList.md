@@ -1,6 +1,6 @@
 # Trade Reflection - Central Feature Registry
 
-Last updated: 2026-05-09
+Last updated: 2026-05-14
 Purpose: This is the canonical feature inventory and milestone status for the stock-journal app.
 
 ## Milestone Status Snapshot
@@ -18,6 +18,7 @@ Purpose: This is the canonical feature inventory and milestone status for the st
 - [x] M6 (remaining production hardening): deployment checklist and compliance verification tasks
 - [x] M7 (remaining hardening): unresolved security audit items and validation tasks
 - [ ] M8 (remaining hardening): validation suite, migration rollout checks, and release documentation
+- [ ] M9 (planned): security and best-practices remediation from latest audit scan
 
 ---
 
@@ -232,6 +233,16 @@ Purpose: This is the canonical feature inventory and milestone status for the st
 
 - [x] Phase 4: A+ Setup Generator page + `/api/ai/generate-setups` endpoint
 - [ ] Phase 5: Supabase custom domain OAuth fix
+
+### M9 Security and Best-Practices Remediation
+
+- [ ] Validate and enforce allowlisted redirect origins for Stripe `success_url`, `cancel_url`, and `return_url` inputs
+- [ ] Restrict service-worker API caching for authenticated/user-specific requests and skip caching requests with `Authorization` headers
+- [ ] Add bounded eviction policy (LRU/TTL + max entries) for in-memory AI response/quota maps in `lib/aiRoutes.mjs`
+- [ ] Remove wildcard `Access-Control-Allow-Origin` overrides in Finnhub proxy routes and rely on centralized CORS policy
+- [ ] Resolve production dependency vulnerabilities from `npm audit --omit=dev` and document upgrade decisions
+- [ ] Restore lint guardrails by adding committed ESLint configuration compatible with current scripts
+- [ ] Add/verify baseline Express hardening middleware (`helmet`) and align with deployed proxy/CDN header policy
 
 ---
 

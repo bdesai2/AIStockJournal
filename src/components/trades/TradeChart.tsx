@@ -51,6 +51,16 @@ function getTradeTypeLabel(trade: Trade): string {
 }
 
 /**
+ * Estimate context window shown around entry based on chart interval.
+ */
+function getChartLookback(interval: string): number {
+  if (interval === '5') return 1
+  if (interval === '15') return 2
+  if (interval === '30') return 3
+  return 5
+}
+
+/**
  * Calculate P&L display values
  */
 function calculatePnL(trade: Trade) {

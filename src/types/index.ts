@@ -76,6 +76,41 @@ export interface Strategy {
   screenshots?: StrategyScreenshot[]
 }
 
+export type SetupProbability = 'low' | 'medium' | 'high'
+export type SetupStatus = 'open' | 'closed'
+export type SetupCloseOutcome = 'successful' | 'cancelled' | 'failed'
+
+export interface SetupScreenshot {
+  id: string
+  setup_id: string
+  user_id: string
+  storage_path: string
+  url: string
+  label?: string
+  created_at: string
+}
+
+export interface Setup {
+  id: string
+  user_id: string
+  name: string
+  ticker: string
+  direction: TradeDirection
+  status: SetupStatus
+  close_outcome?: SetupCloseOutcome
+  closed_at?: string
+  strategy_id?: string
+  reasons?: string
+  entry_price: number
+  take_profit: number
+  stop_loss: number
+  probability: SetupProbability
+  tags?: StrategyTag[]
+  created_at: string
+  updated_at: string
+  screenshots?: SetupScreenshot[]
+}
+
 // ─── Strategy Tag ─────────────────────────────────────────────────────────────
 
 export type StrategyTag =
@@ -150,6 +185,7 @@ export interface Trade {
   exit_notes?: string        // Why you exited
   mistakes?: string          // What went wrong
   lessons?: string           // What you learned
+  execution_notes?: string   // Notes about the execution of the trade
   emotional_state?: 'calm' | 'fomo' | 'fearful' | 'confident' | 'impulsive' | 'disciplined' | 'impatient' | 'anxious'
   execution_quality?: 1 | 2 | 3 | 4 | 5   // 1–5 self-rating
 

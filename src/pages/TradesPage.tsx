@@ -4,12 +4,14 @@ import { PlusCircle, Search, Filter, ArrowUpDown, Download } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { TradeRow } from '@/components/trades/TradeRow'
+import { ExecutionNotesModal } from '@/components/modals/ExecutionNotesModal'
 import type { AssetType, TradeStatus, Trade } from '@/types'
 import { calcPnlPercent } from '@/lib/tradeUtils'
 
 type SortKey = 'entry_date' | 'net_pnl' | 'pnl_percent' | 'r_multiple' | 'ticker'
 type SortDir = 'asc' | 'desc'
 type GradeFilter = 'all' | 'A' | 'B' | 'C' | 'D' | 'F' | '-'
+type OutcomeFilter = 'all' | 'wins' | 'losses' | 'breakeven'
 
 const FILTER_STORAGE_KEY = 'trades_filters_v1'
 
@@ -54,6 +56,7 @@ function getInitialFilters(): {
   statusFilter: TradeStatus | 'all'
   dirFilter: 'long' | 'short' | 'all'
   gradeFilter: GradeFilter
+  outcomeFilter: OutcomeFilter
   sortKey: SortKey
   sortDir: SortDir
 } {
@@ -63,6 +66,7 @@ function getInitialFilters(): {
     statusFilter: TradeStatus | 'all'
     dirFilter: 'long' | 'short' | 'all'
     gradeFilter: GradeFilter
+    outcomeFilter: OutcomeFilter
     sortKey: SortKey
     sortDir: SortDir
   } = {
@@ -71,6 +75,7 @@ function getInitialFilters(): {
     statusFilter: 'all',
     dirFilter: 'all',
     gradeFilter: 'all',
+    outcomeFilter: 'all',
     sortKey: 'entry_date',
     sortDir: 'desc',
   }
@@ -134,12 +139,15 @@ export function TradesPage() {
   const [statusFilter, setStatusFilter] = useState<TradeStatus | 'all'>(() => getInitialFilters().statusFilter)
   const [dirFilter, setDirFilter] = useState<'long' | 'short' | 'all'>(() => getInitialFilters().dirFilter)
   const [gradeFilter, setGradeFilter] = useState<GradeFilter>(() => getInitialFilters().gradeFilter)
+  const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>(() => getInitialFilters().outcomeFilter)
   const [sortKey, setSortKey] = useState<SortKey>(() => getInitialFilters().sortKey)
   const [sortDir, setSortDir] = useState<SortDir>(() => getInitialFilters().sortDir)
   const [exportFromDate, setExportFromDate] = useState('')
   const [exportToDate, setExportToDate] = useState('')
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedTradeIds, setSelectedTradeIds] = useState<string[]>([])
+  const [executionNotesModalOpen, setExecutionNotesModalOpen] = useState(false)
+  const [executionNotesTradeId, setExecutionNotesTradeId] = useState<string | null>(null)
 
   useEffect(() => {
     if (user?.id && selectedAccountId) fetchTrades(user.id, selectedAccountId)
@@ -153,6 +161,7 @@ export function TradesPage() {
       statusFilter,
       dirFilter,
       gradeFilter,
+      outcomeFilter,
       sortKey,
       sortDir,
     }
@@ -161,7 +170,7 @@ export function TradesPage() {
     } catch {
       // ignore storage failures
     }
-  }, [search, assetFilter, statusFilter, dirFilter, gradeFilter, sortKey, sortDir])
+  }, [search, assetFilter, statusFilter, dirFilter, gradeFilter, outcomeFilter, sortKey, sortDir])
 
   const filtered = useMemo(() => {
     let result = [...trades]
@@ -228,6 +237,16 @@ export function TradesPage() {
       }
     }
 
+    if (!hasChartDrilldown && outcomeFilter !== 'all') {
+      result = result.filter((t) => {
+        const pnlPercent = calcPnlPercent(t)
+        if (pnlPercent == null) return false
+        if (outcomeFilter === 'wins') return pnlPercent >= 5
+        if (outcomeFilter === 'losses') return pnlPercent <= -5
+        return Math.abs(pnlPercent) < 5
+      })
+    }
+
     result.sort((a, b) => {
       let av: number | string = 0
       let bv: number | string = 0
@@ -277,6 +296,7 @@ export function TradesPage() {
     statusFilter,
     dirFilter,
     gradeFilter,
+    outcomeFilter,
     sortKey,
     sortDir,
   ])
@@ -523,6 +543,27 @@ export function TradesPage() {
               {v === 'all' ? 'All Grades' : v === '-' ? '–' : v}
             </button>
           ))}
+
+          <div className="w-px h-6 bg-border" />
+
+          {([
+            { key: 'all', label: 'All Outcomes' },
+            { key: 'wins', label: 'Wins' },
+            { key: 'losses', label: 'Losses' },
+            { key: 'breakeven', label: 'Break Even' },
+          ] as const).map((v) => (
+            <button
+              key={v.key}
+              onClick={() => setOutcomeFilter(v.key)}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                outcomeFilter === v.key
+                  ? 'bg-accent text-foreground border border-primary/50'
+                  : 'bg-input border border-border text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -600,10 +641,26 @@ export function TradesPage() {
                   return prev.filter((id) => id !== tradeId)
                 })
               }}
+              onEditExecutionNotes={() => {
+                setExecutionNotesTradeId(trade.id)
+                setExecutionNotesModalOpen(true)
+              }}
             />
           ))
         )}
       </div>
+
+      {/* Execution Notes Modal */}
+      {executionNotesTradeId && trades.find((t) => t.id === executionNotesTradeId) && (
+        <ExecutionNotesModal
+          isOpen={executionNotesModalOpen}
+          onClose={() => {
+            setExecutionNotesModalOpen(false)
+            setExecutionNotesTradeId(null)
+          }}
+          trade={trades.find((t) => t.id === executionNotesTradeId)!}
+        />
+      )}
     </div>
   )
 }

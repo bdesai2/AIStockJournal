@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Edit2, Trash2, ArrowUpRight, ArrowDownRight,
-  TrendingUp, TrendingDown, Calendar, Tag, Brain, Image, Sparkles, Loader2,
+  TrendingUp, TrendingDown, Calendar, Tag, Brain, Image, Sparkles, Loader2, FileText,
   Upload, X, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { ExecutionsCard } from '@/components/trades/ExecutionsCard'
+import { ExecutionNotesModal } from '@/components/modals/ExecutionNotesModal'
 import { TradeChart } from '@/components/trades/TradeChart'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
@@ -45,6 +46,7 @@ export function TradeDetailPage() {
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [similarOpen, setSimilarOpen] = useState(false)
+  const [executionNotesModalOpen, setExecutionNotesModalOpen] = useState(false)
 
   useEffect(() => {
     if (user?.id && selectedAccountId && trades.length === 0) fetchTrades(user.id, selectedAccountId)
@@ -263,6 +265,15 @@ export function TradeDetailPage() {
             <Edit2 className="w-3.5 h-3.5" />
             Edit
           </button>
+          {trade.status === 'closed' && (
+            <button
+              onClick={() => setExecutionNotesModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              Execution Notes
+            </button>
+          )}
           <button
             onClick={handleDelete}
             className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-destructive/30 text-sm text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors"
@@ -441,7 +452,7 @@ export function TradeDetailPage() {
       {/* Chart - Full Width */}
       <TradeChart trade={trade} apiKey={import.meta.env.VITE_FINNHUB_API_KEY} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {(trade.setup_notes || trade.entry_notes || trade.exit_notes || trade.mistakes || trade.lessons) && (
+        {(trade.setup_notes || trade.entry_notes || trade.exit_notes || trade.mistakes || trade.lessons || trade.execution_notes) && (
           <Card title="Journal Notes" icon={Calendar}>
             {[
               { label: 'Setup / Thesis', val: trade.setup_notes },
@@ -449,6 +460,7 @@ export function TradeDetailPage() {
               { label: 'Exit Notes', val: trade.exit_notes },
               { label: 'Mistakes', val: trade.mistakes },
               { label: 'Lessons Learned', val: trade.lessons },
+              { label: 'Execution Notes', val: trade.execution_notes },
             ].map(({ label, val }) =>
               val ? (
                 <div key={label} className="mb-4 last:mb-0">
@@ -711,6 +723,15 @@ export function TradeDetailPage() {
           )}
         </div>
       </Card>
+
+      {/* Execution Notes Modal */}
+      {trade && (
+        <ExecutionNotesModal
+          isOpen={executionNotesModalOpen}
+          onClose={() => setExecutionNotesModalOpen(false)}
+          trade={trade}
+        />
+      )}
     </div>
   )
 }

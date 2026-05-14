@@ -139,3 +139,12 @@ async function networkFirst(request, cacheName, isNavigation) {
     throw err;
   }
 }
+
+// Handle messages from clients - prevents "message channel closed" errors
+self.addEventListener('message', (event) => {
+  // Respond to any message to prevent async response timeout errors
+  if (event.ports && event.ports[0]) {
+    event.ports[0].postMessage({ success: true });
+  }
+});
+

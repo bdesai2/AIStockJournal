@@ -13,6 +13,7 @@ const TradesPage = lazy(() => import('@/pages/TradesPage').then((m) => ({ defaul
 const TradeDetailPage = lazy(() => import('@/pages/TradeDetailPage').then((m) => ({ default: m.TradeDetailPage })))
 const NewTradePage = lazy(() => import('@/pages/NewTradePage').then((m) => ({ default: m.NewTradePage })))
 const JournalPage = lazy(() => import('@/pages/JournalPage').then((m) => ({ default: m.JournalPage })))
+const SetupsPage = lazy(() => import('@/pages/SetupsPage').then((m) => ({ default: m.SetupsPage })))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const StrategiesPage = lazy(() => import('@/pages/StrategiesPage').then((m) => ({ default: m.StrategiesPage })))
 const PricingPage = lazy(() => import('@/pages/PricingPage').then((m) => ({ default: m.PricingPage })))
@@ -62,6 +63,7 @@ export const router = createBrowserRouter([
       { path: 'trades/:id', element: withSuspense(<TradeDetailPage />) },
       { path: 'trades/:id/edit', element: withSuspense(<NewTradePage />) },
       { path: 'journal', element: withSuspense(<JournalPage />) },
+      { path: 'setups', element: withSuspense(<SetupsPage />) },
       { path: 'strategies', element: withSuspense(<StrategiesPage />) },
       { path: 'pricing', element: withSuspense(<PricingPage />) },
       { path: 'settings', element: withSuspense(<SettingsPage />) },

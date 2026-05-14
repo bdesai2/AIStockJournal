@@ -1,5 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Trade, UserProfile, Account, DailyJournal, TradeScreenshot, Strategy, StrategyScreenshot } from '@/types'
+import type {
+  Trade,
+  UserProfile,
+  Account,
+  DailyJournal,
+  TradeScreenshot,
+  Strategy,
+  StrategyScreenshot,
+  Setup,
+  SetupScreenshot,
+} from '@/types'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
@@ -48,6 +58,8 @@ export const db = {
   openPositionAnalyses: () => supabase.from('open_position_analyses'),
   strategies: () => supabase.from('strategies'),
   strategyScreenshots: () => supabase.from('strategy_screenshots'),
+  setups: () => supabase.from('setups'),
+  setupScreenshots: () => supabase.from('setup_screenshots'),
   audit_logs: () => supabase.from('audit_logs'),
 } as const
 
@@ -115,7 +127,7 @@ export const storage = {
           .map((s) => [s.path, s.signedUrl])
       )
 
-      console.log(`[getSignedUrls] Successfully created ${result.size} signed URLs (from ${paths.length} paths)`)
+      //console.log(`[getSignedUrls] Successfully created ${result.size} signed URLs (from ${paths.length} paths)`)
       return result
     } catch (e) {
       console.error('Exception in getSignedUrls:', e)
@@ -150,5 +162,15 @@ export const auth = {
     supabase.auth.onAuthStateChange(cb),
 }
 
-export type { Trade, UserProfile, Account, DailyJournal, TradeScreenshot, Strategy, StrategyScreenshot }
+export type {
+  Trade,
+  UserProfile,
+  Account,
+  DailyJournal,
+  TradeScreenshot,
+  Strategy,
+  StrategyScreenshot,
+  Setup,
+  SetupScreenshot,
+}
 

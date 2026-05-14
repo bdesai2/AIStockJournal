@@ -185,7 +185,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       set({ subscriptionLoading: true })
 
-      console.log('[fetchSubscription] Fetching for userId:', userId)
+      //console.log('[fetchSubscription] Fetching for userId:', userId)
 
       // Query Supabase directly for user subscription with tier info
       const { data: subData, error: subError } = await supabase
@@ -194,12 +194,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .eq('user_id', userId)
         .single()
 
-      console.log('[fetchSubscription] subData:', subData)
-      console.log('[fetchSubscription] subError:', subError)
+      //console.log('[fetchSubscription] subData:', subData)
+      //console.log('[fetchSubscription] subError:', subError)
 
       // If no subscription record exists, default to free
       if (subError?.code === 'PGRST116' || !subData) {
-        console.log('[fetchSubscription] No subscription record, defaulting to free')
+        //console.log('[fetchSubscription] No subscription record, defaulting to free')
         set({
           subscription: {
             tier: 'free',
@@ -220,30 +220,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Get the tier name
       let tierName = 'free'
       if (subData.tier_id) {
-        console.log('[fetchSubscription] Looking up tier for tier_id:', subData.tier_id)
+        //console.log('[fetchSubscription] Looking up tier for tier_id:', subData.tier_id)
         const { data: tierData, error: tierError } = await supabase
           .from('subscription_tiers')
           .select('name')
           .eq('id', subData.tier_id)
           .single()
 
-        console.log('[fetchSubscription] tierData:', tierData)
-        console.log('[fetchSubscription] tierError:', tierError)
+        //console.log('[fetchSubscription] tierData:', tierData)
+        //console.log('[fetchSubscription] tierError:', tierError)
 
         if (tierData?.name) {
           tierName = tierData.name
-          console.log('[fetchSubscription] Set tierName to:', tierName)
+          //console.log('[fetchSubscription] Set tierName to:', tierName)
         } else {
-          console.log('[fetchSubscription] No name in tierData, keeping default free')
+          //console.log('[fetchSubscription] No name in tierData, keeping default free')
         }
       } else {
-        console.log('[fetchSubscription] subData.tier_id is null/undefined')
+        //console.log('[fetchSubscription] subData.tier_id is null/undefined')
       }
 
-      console.log('[fetchSubscription] Final subscription state:', {
+      /*console.log('[fetchSubscription] Final subscription state:', {
         tier: tierName,
         status: subData.status,
-      })
+      })*/
 
       set({
         subscription: {

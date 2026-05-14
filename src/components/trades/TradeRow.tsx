@@ -1,4 +1,4 @@
-import { ArrowUpRight, ArrowDownRight, Clock } from 'lucide-react'
+import { ArrowUpRight, ArrowDownRight, Clock, FileText } from 'lucide-react'
 import type { Trade } from '@/types'
 import { fmt, pnlColor, calcBuyAmount, calcSellAmount, calcPnlPercent, STRATEGY_TAG_LABELS } from '@/lib/tradeUtils'
 import { cn } from '@/lib/utils'
@@ -9,6 +9,7 @@ interface Props {
   selectable?: boolean
   selected?: boolean
   onToggleSelect?: (tradeId: string, checked: boolean) => void
+  onEditExecutionNotes?: () => void
 }
 
 const ASSET_COLORS: Record<string, string> = {
@@ -18,7 +19,7 @@ const ASSET_COLORS: Record<string, string> = {
   crypto: 'text-orange-400 bg-orange-400/10',
 }
 
-export function TradeRow({ trade, onClick, selectable = false, selected = false, onToggleSelect }: Props) {
+export function TradeRow({ trade, onClick, selectable = false, selected = false, onToggleSelect, onEditExecutionNotes }: Props) {
   const buyAmount = calcBuyAmount(trade)
   const sellAmount = calcSellAmount(trade)
   const pnlPercent = calcPnlPercent(trade)
@@ -160,6 +161,20 @@ export function TradeRow({ trade, onClick, selectable = false, selected = false,
           {trade.ai_grade ?? 'A'}
         </div>
       </div>
+
+      {/* Edit Execution Notes Button */}
+      {trade.status === 'closed' && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onEditExecutionNotes?.()
+          }}
+          className="p-1.5 rounded hover:bg-muted transition-colors hidden sm:flex"
+          title="Add execution notes"
+        >
+          <FileText className="w-4 h-4 text-muted-foreground hover:text-foreground transition-colors" />
+        </button>
+      )}
     </div>
   )
 }

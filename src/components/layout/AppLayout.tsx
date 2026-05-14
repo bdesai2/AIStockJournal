@@ -15,6 +15,7 @@ import {
   Wifi,
   MonitorDown,
   Sparkles,
+  Target,
 } from 'lucide-react'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { useInstallPrompt } from '@/hooks/useInstallPrompt'
@@ -46,22 +47,24 @@ import { useNotificationStore, type Notification } from '@/store/notificationSto
 import { aggregateStats } from '@/lib/tradeUtils'
 
 const NAV_ITEMS = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/open-positions', icon: Zap, label: 'Open Positions' },
-  { to: '/setup-generator', icon: Sparkles, label: 'A+ Setups' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },  
   { to: '/trades', icon: LineChart, label: 'Trades' },
   { to: '/journal', icon: BookOpen, label: 'Journal' },
+  { to: '/setups', icon: Target, label: 'Setups' },
   { to: '/strategies', icon: Zap, label: 'Strategies' },
+  { to: '/open-positions', icon: Zap, label: 'Open Positions' },
+  { to: '/setup-generator', icon: Sparkles, label: 'A+ Setups' },
 ]
 
 const MOBILE_NAV_ITEMS = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/open-positions', icon: Zap, label: 'Open Positions' },
-  { to: '/setup-generator', icon: Sparkles, label: 'A+ Setups' },
   { to: '/trades', icon: LineChart, label: 'Trades' },
   { to: '/journal', icon: BookOpen, label: 'Journal' },
+  { to: '/setups', icon: Target, label: 'Setups' },
   { to: '/strategies', icon: Zap, label: 'Strategies' },
   { to: '/settings', icon: Settings, label: 'Settings' },
+  { to: '/open-positions', icon: Zap, label: 'Open Positions' },
+  { to: '/setup-generator', icon: Sparkles, label: 'A+ Setups' },  
 ]
 
 const BETA_NAV_ROUTES = new Set(['/open-positions', '/setup-generator'])
@@ -84,6 +87,7 @@ function getBreadcrumbs(pathname: string): Array<{ to: string; label: string }> 
     if (part === 'trades') label = 'Trades'
     if (part === 'new') label = 'New Trade'
     if (part === 'journal') label = 'Journal'
+    if (part === 'setups') label = 'Setups'
     if (part === 'strategies') label = 'Strategies'
     if (part === 'settings') label = 'Settings'
     if (part === 'pricing') label = 'Pricing'

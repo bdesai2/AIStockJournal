@@ -99,7 +99,7 @@ export const useTradeStore = create<TradeState>((set, get) => ({
       .map((s) => s.storage_path)
       .filter(Boolean)
 
-    console.log(`[fetchTrades] Found ${allPaths.length} screenshot paths to refresh`)
+    //console.log(`[fetchTrades] Found ${allPaths.length} screenshot paths to refresh`)
 
     if (allPaths.length > 0) {
       const urlMap = await storage.getSignedUrls(allPaths)
