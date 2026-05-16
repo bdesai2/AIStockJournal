@@ -5,7 +5,7 @@ Purpose: This is the canonical feature inventory and milestone status for the st
 
 ## Release 3.0.0 Notes
 
-- [x] Journal calendar now refreshes saved entries more reliably without requiring a full page reload.
+- [x] Bug Fix: Journal calendar now refreshes saved entries more reliably without requiring a full page reload.
 - [x] Setup closure flow now supports a modal with status selection and optional notes.
 - [x] Setup area now carries a visible beta tag.
 - [x] A+ Setup Generator is temporarily disabled while the workflow is being reworked.
