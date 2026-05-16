@@ -59,9 +59,8 @@ const MOBILE_NAV_ITEMS = [
   { to: '/trades', icon: LineChart, label: 'Trades' },
   { to: '/journal', icon: BookOpen, label: 'Journal' },
   { to: '/setups', icon: Target, label: 'Setups' },
-  { to: '/strategies', icon: Zap, label: 'Strategies' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
-  { to: '/open-positions', icon: Zap, label: 'Open Positions' },
+  { to: '/strategies', icon: Zap, label: 'Strategies' },  
+  { to: '/open-positions', icon: Zap, label: 'Positions' },
 ]
 
 const BETA_NAV_ROUTES = new Set(['/setups', '/open-positions'])
@@ -383,6 +382,15 @@ export function AppLayout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate('/settings')}
+              className="md:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title="Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+
             {pendingSyncCount > 0 && (
               <div
                 className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded border border-amber-500/40 bg-amber-500/10 text-[11px] text-amber-300"
@@ -558,12 +566,7 @@ export function AppLayout() {
             {({ isActive }) => (
               <>
                 <Icon className={`w-5 h-5 ${isActive ? 'text-primary' : ''}`} />
-                <span className="font-medium leading-none">{label}</span>
-                {BETA_NAV_ROUTES.has(to) && (
-                  <span className="rounded border border-amber-500/40 bg-amber-500/15 px-1 py-0.5 text-[8px] font-semibold tracking-wide text-amber-300 leading-none">
-                    BETA
-                  </span>
-                )}
+                <span className="font-medium leading-none">{label}</span>                
               </>
             )}
           </NavLink>

@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { PlusCircle, Search, Filter, ArrowUpDown, Download } from 'lucide-react'
+import { PlusCircle, Search, Filter, ArrowUpDown, Download, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { TradeRow } from '@/components/trades/TradeRow'
@@ -148,6 +148,7 @@ export function TradesPage() {
   const [selectedTradeIds, setSelectedTradeIds] = useState<string[]>([])
   const [executionNotesModalOpen, setExecutionNotesModalOpen] = useState(false)
   const [executionNotesTradeId, setExecutionNotesTradeId] = useState<string | null>(null)
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   useEffect(() => {
     if (user?.id && selectedAccountId) fetchTrades(user.id, selectedAccountId)
@@ -394,177 +395,194 @@ export function TradesPage() {
       </div>
 
       {/* Filters */}
-      <div className="p-4 rounded-lg border border-border bg-card space-y-3">
-        {hasChartDrilldown && (
-          <div className="flex items-center justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
-            <p className="text-xs text-foreground/90">
-              {exitDateFilter && (
-                <>Showing trades contributing to {drilldownLabel} bar for <span className="font-semibold">{exitDateFilter}</span></>
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((v) => !v)}
+          className="w-full flex items-center justify-between gap-3 px-4 py-3 border-b border-border bg-accent/20 hover:bg-accent/30 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Filters</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="hidden sm:inline">{filtersOpen ? 'Hide' : 'Show'}</span>
+            {filtersOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </div>
+        </button>
+
+        {filtersOpen && (
+          <div className="p-4 space-y-3">
+            {hasChartDrilldown && (
+              <div className="flex items-center justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+                <p className="text-xs text-foreground/90">
+                  {exitDateFilter && (
+                    <>Showing trades contributing to {drilldownLabel} bar for <span className="font-semibold">{exitDateFilter}</span></>
+                  )}
+                  {!exitDateFilter && exitDateFromFilter && exitDateToFilter && (
+                    <>Showing trades contributing to {drilldownLabel} range <span className="font-semibold">{exitDateFromFilter}</span> to <span className="font-semibold">{exitDateToFilter}</span></>
+                  )}
+                  {filterStrategy && (
+                    <>Showing trades with tag <span className="font-semibold">{filterStrategy}</span></>
+                  )}
+                  {filterUserStrategy && (
+                    <>Showing trades with strategy <span className="font-semibold">{filterUserStrategy}</span></>
+                  )}
+                  {filterAsset && (
+                    <>Showing {filterAsset} trades</>
+                  )}
+                </p>
+                <button
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams)
+                    next.delete('drilldown')
+                    next.delete('exitDate')
+                    next.delete('exitDateFrom')
+                    next.delete('exitDateTo')
+                    next.delete('filterStrategy')
+                    next.delete('filterUserStrategy')
+                    next.delete('filterAsset')
+                    setSearchParams(next)
+                  }}
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+
+            {/* Search (full-width) */}
+            <div className="relative w-full">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search ticker, strategy..."
+                className="w-full bg-input border border-border rounded-md pl-8 pr-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+
+            {/* Export date range */}
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] text-muted-foreground">Export From</label>
+                <input
+                  type="date"
+                  value={exportFromDate}
+                  onChange={(e) => setExportFromDate(e.target.value)}
+                  className="bg-input border border-border rounded-md px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] text-muted-foreground">Export To</label>
+                <input
+                  type="date"
+                  value={exportToDate}
+                  onChange={(e) => setExportToDate(e.target.value)}
+                  className="bg-input border border-border rounded-md px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              {(exportFromDate || exportToDate) && (
+                <button
+                  onClick={() => {
+                    setExportFromDate('')
+                    setExportToDate('')
+                  }}
+                  className="h-8 px-2.5 rounded-md border border-border text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                >
+                  Clear Range
+                </button>
               )}
-              {!exitDateFilter && exitDateFromFilter && exitDateToFilter && (
-                <>Showing trades contributing to {drilldownLabel} range <span className="font-semibold">{exitDateFromFilter}</span> to <span className="font-semibold">{exitDateToFilter}</span></>
-              )}
-              {filterStrategy && (
-                <>Showing trades with tag <span className="font-semibold">{filterStrategy}</span></>
-              )}
-              {filterUserStrategy && (
-                <>Showing trades with strategy <span className="font-semibold">{filterUserStrategy}</span></>
-              )}
-              {filterAsset && (
-                <>Showing {filterAsset} trades</>
-              )}
-            </p>
-            <button
-              onClick={() => {
-                const next = new URLSearchParams(searchParams)
-                next.delete('drilldown')
-                next.delete('exitDate')
-                next.delete('exitDateFrom')
-                next.delete('exitDateTo')
-                next.delete('filterStrategy')
-                next.delete('filterUserStrategy')
-                next.delete('filterAsset')
-                setSearchParams(next)
-              }}
-              className="text-xs font-medium text-primary hover:underline"
-            >
-              Clear
-            </button>
+              <p className="text-[11px] text-muted-foreground ml-auto">
+                Export scope: {exportFilteredTrades.length} trade{exportFilteredTrades.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+
+            {/* Filter buttons row */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Asset filter */}
+              {(['all', 'stock', 'option', 'etf', 'crypto'] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setAssetFilter(v)}
+                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                    assetFilter === v ? 'bg-primary text-primary-foreground' : 'bg-input border border-border text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {v === 'all' ? 'All Assets' : v.toUpperCase()}
+                </button>
+              ))}
+
+              <div className="w-full h-0 md:w-px md:h-6 md:bg-border" />
+
+              {/* Status */}
+              {(['all', 'open', 'closed', 'partial'] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setStatusFilter(v)}
+                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                    statusFilter === v ? 'bg-accent text-foreground border border-primary/50' : 'bg-input border border-border text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                </button>
+              ))}
+
+              <div className="w-full h-0 md:w-px md:h-6 md:bg-border" />
+
+              {/* Direction */}
+              {(['all', 'long', 'short'] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setDirFilter(v)}
+                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                    dirFilter === v ? 'bg-accent text-foreground border border-primary/50' : 'bg-input border border-border text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                </button>
+              ))}
+
+              <div className="w-full h-0 md:w-px md:h-6 md:bg-border" />
+
+              {/* Grade filter */}
+              {(['all', 'A', 'B', 'C', 'D', 'F', '-'] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setGradeFilter(v)}
+                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                    gradeFilter === v
+                      ? 'bg-accent text-foreground border border-primary/50'
+                      : 'bg-input border border-border text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {v === 'all' ? 'All Grades' : v === '-' ? '–' : v}
+                </button>
+              ))}
+
+              <div className="w-full h-0 md:w-px md:h-6 md:bg-border" />
+
+              {([
+                { key: 'all', label: 'All Outcomes' },
+                { key: 'wins', label: 'Wins' },
+                { key: 'losses', label: 'Losses' },
+                { key: 'breakeven', label: 'Break Even' },
+              ] as const).map((v) => (
+                <button
+                  key={v.key}
+                  onClick={() => setOutcomeFilter(v.key)}
+                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                    outcomeFilter === v.key
+                      ? 'bg-accent text-foreground border border-primary/50'
+                      : 'bg-input border border-border text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
-
-        {/* Search (full-width) */}
-        <div className="relative w-full">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search ticker, strategy..."
-            className="w-full bg-input border border-border rounded-md pl-8 pr-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-        </div>
-
-        {/* Export date range */}
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="flex flex-col gap-1">
-            <label className="text-[11px] text-muted-foreground">Export From</label>
-            <input
-              type="date"
-              value={exportFromDate}
-              onChange={(e) => setExportFromDate(e.target.value)}
-              className="bg-input border border-border rounded-md px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-[11px] text-muted-foreground">Export To</label>
-            <input
-              type="date"
-              value={exportToDate}
-              onChange={(e) => setExportToDate(e.target.value)}
-              className="bg-input border border-border rounded-md px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
-          {(exportFromDate || exportToDate) && (
-            <button
-              onClick={() => {
-                setExportFromDate('')
-                setExportToDate('')
-              }}
-              className="h-8 px-2.5 rounded-md border border-border text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            >
-              Clear Range
-            </button>
-          )}
-          <p className="text-[11px] text-muted-foreground ml-auto">
-            Export scope: {exportFilteredTrades.length} trade{exportFilteredTrades.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-
-        {/* Filter buttons row */}
-        <div className="flex flex-wrap items-center gap-3">
-          <Filter className="w-4 h-4 text-muted-foreground" />
-
-          {/* Asset filter */}
-          {(['all', 'stock', 'option', 'etf', 'crypto'] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setAssetFilter(v)}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                assetFilter === v ? 'bg-primary text-primary-foreground' : 'bg-input border border-border text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {v === 'all' ? 'All Assets' : v.toUpperCase()}
-            </button>
-          ))}
-
-          <div className="w-px h-6 bg-border" />
-
-          {/* Status */}
-          {(['all', 'open', 'closed', 'partial'] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setStatusFilter(v)}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                statusFilter === v ? 'bg-accent text-foreground border border-primary/50' : 'bg-input border border-border text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {v.charAt(0).toUpperCase() + v.slice(1)}
-            </button>
-          ))}
-
-          <div className="w-px h-6 bg-border" />
-
-          {/* Direction */}
-          {(['all', 'long', 'short'] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setDirFilter(v)}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                dirFilter === v ? 'bg-accent text-foreground border border-primary/50' : 'bg-input border border-border text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {v.charAt(0).toUpperCase() + v.slice(1)}
-            </button>
-          ))}
-
-          <div className="w-px h-6 bg-border" />
-
-          {/* Grade filter */}
-          {(['all', 'A', 'B', 'C', 'D', 'F', '-'] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setGradeFilter(v)}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                gradeFilter === v
-                  ? 'bg-accent text-foreground border border-primary/50'
-                  : 'bg-input border border-border text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {v === 'all' ? 'All Grades' : v === '-' ? '–' : v}
-            </button>
-          ))}
-
-          <div className="w-px h-6 bg-border" />
-
-          {([
-            { key: 'all', label: 'All Outcomes' },
-            { key: 'wins', label: 'Wins' },
-            { key: 'losses', label: 'Losses' },
-            { key: 'breakeven', label: 'Break Even' },
-          ] as const).map((v) => (
-            <button
-              key={v.key}
-              onClick={() => setOutcomeFilter(v.key)}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                outcomeFilter === v.key
-                  ? 'bg-accent text-foreground border border-primary/50'
-                  : 'bg-input border border-border text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {v.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Table */}
