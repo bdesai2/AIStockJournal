@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
-import { Image as ImageIcon, Loader2, PlusCircle, Trash2, Filter, Search } from 'lucide-react'
+import { Image as ImageIcon, Loader2, PlusCircle, Trash2, Filter, Search, X } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
+import { useNotificationStore } from '@/store/notificationStore'
 import { useSetupStore } from '@/store/setupStore'
 import { useStrategyStore } from '@/store/strategyStore'
 import { SetupRow } from '@/components/setups/SetupRow'
 import { STRATEGY_TAG_LABELS, fmt } from '@/lib/tradeUtils'
+import { auth } from '@/lib/supabase'
 import type { Setup, SetupProbability, StrategyTag, TradeDirection } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -48,7 +50,8 @@ const calcRiskReward = (entry: number, stop: number, target: number) => {
 }
 
 export function SetupsPage() {
-  const { user } = useAuthStore()
+  const { user, loading: authLoading, initialized } = useAuthStore()
+  const pushNotification = useNotificationStore((state) => state.push)
   const { strategies, fetchStrategies } = useStrategyStore()
   const {
     setups,
@@ -67,8 +70,16 @@ export function SetupsPage() {
   const [mode, setMode] = useState<'view' | 'edit' | 'create'>('view')
   const [form, setForm] = useState<SetupFormState>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  const [closingSetup, setClosingSetup] = useState<Setup | null>(null)
+  const [closeStatus, setCloseStatus] = useState<Setup['close_outcome']>('cancelled')
+  const [closeNotes, setCloseNotes] = useState('')
+  const [closing, setClosing] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed'>('all')
+  const authReady = initialized && !authLoading && !!user?.id
+  const saveBlockedReason = !initialized || authLoading
+    ? 'Authentication is still loading. Please wait a moment before saving.'
+    : null
 
   useEffect(() => {
     if (user?.id) {
@@ -164,9 +175,31 @@ export function SetupsPage() {
   }
 
   const handleSave = async () => {
-    if (!user?.id) return
+    if (saveBlockedReason) {
+      pushNotification({
+        kind: 'error',
+        variant: 'warning',
+        title: 'Setup not saved',
+        message: saveBlockedReason,
+      })
+      return
+    }
+
     if (!form.name.trim()) return
     if (!form.ticker.trim()) return
+
+    const session = await auth.ensureActiveSession()
+    const currentUserId = session?.user?.id
+
+    if (!currentUserId) {
+      pushNotification({
+        kind: 'error',
+        variant: 'error',
+        title: 'Setup not saved',
+        message: 'Your session is no longer active. Please sign in again and resubmit the setup.',
+      })
+      return
+    }
 
     setSaving(true)
     const payload = {
@@ -194,7 +227,7 @@ export function SetupsPage() {
         }
       } else {
         const created = await createSetup({
-          user_id: user.id,
+          user_id: currentUserId,
           ...payload,
           status: 'open',
         })
@@ -211,30 +244,27 @@ export function SetupsPage() {
 
   const handleCloseSetup = async () => {
     if (!selectedSetup || selectedSetup.status === 'closed') return
+    setClosingSetup(selectedSetup)
+    setCloseStatus(selectedSetup.close_outcome ?? 'cancelled')
+    setCloseNotes(selectedSetup.close_notes ?? '')
+  }
 
-    const value = window.prompt('Close outcome? Enter one of: successful, cancelled, failed', 'successful')
-    if (!value) return
+  const handleSubmitClose = async () => {
+    if (!closingSetup) return
 
-    const normalized = value.trim().toLowerCase()
-    const outcome =
-      normalized === 'successful'
-        ? 'successful'
-        : normalized === 'cancelled' || normalized === 'canceled'
-          ? 'cancelled'
-          : normalized === 'failed'
-            ? 'failed'
-            : null
-
-    if (!outcome) {
-      window.alert('Invalid outcome. Use successful, cancelled, or failed.')
-      return
-    }
-
-    await updateSetup(selectedSetup.id, {
+    setClosing(true)
+    const updated = await updateSetup(closingSetup.id, {
       status: 'closed',
-      close_outcome: outcome,
+      close_outcome: closeStatus,
+      close_notes: closeNotes.trim() || undefined,
       closed_at: new Date().toISOString(),
     })
+
+    setClosing(false)
+    if (updated) {
+      setClosingSetup(null)
+      setCloseNotes('')
+    }
   }
 
   const handleDelete = async () => {
@@ -273,7 +303,12 @@ export function SetupsPage() {
     <div className="p-6 space-y-4 animate-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-display tracking-wider">SETUPS</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-display tracking-wider">SETUPS</h1>
+            <span className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-amber-300">
+              BETA
+            </span>
+          </div>
           <p className="text-muted-foreground text-sm mt-1">
             Create and review executable trade ideas before placing real trades.
           </p>
@@ -326,6 +361,12 @@ export function SetupsPage() {
         </div>
       )}
 
+      {saveBlockedReason && (
+        <div className="px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/10 text-sm text-amber-200">
+          {saveBlockedReason}
+        </div>
+      )}
+
       <div className="rounded-lg border border-border bg-card overflow-hidden">
         <div className="flex items-center gap-4 px-4 py-2 border-b border-border bg-accent/30">
           <div className="w-7" />
@@ -371,7 +412,7 @@ export function SetupsPage() {
                         onClick={handleCloseSetup}
                         className="px-3 py-1.5 rounded-md border border-amber-500/40 text-[11px] font-medium text-amber-300 hover:bg-amber-500/10 transition-colors"
                       >
-                        Close Setup
+                        Close / Cancel Setup
                       </button>
                     )}
                     <button
@@ -421,6 +462,13 @@ export function SetupsPage() {
                     </span>
                   </span>
                 </div>
+
+                {selectedSetup.status === 'closed' && selectedSetup.close_notes && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Close Notes</p>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{selectedSetup.close_notes}</p>
+                  </div>
+                )}
 
                 {selectedSetup.reasons && (
                   <div>
@@ -609,7 +657,7 @@ export function SetupsPage() {
                 <button
                   type="button"
                   onClick={handleSave}
-                  disabled={!form.name.trim() || !form.ticker.trim() || saving}
+                  disabled={!form.name.trim() || !form.ticker.trim() || saving || !authReady}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-primary/60 text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <PlusCircle className="w-3 h-3" />}
@@ -684,6 +732,72 @@ export function SetupsPage() {
           </div>
         )}
       </div>
+
+      {closingSetup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-lg border border-border bg-card p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-display tracking-wide">Close Setup</h3>
+                <p className="text-xs text-muted-foreground mt-1">Select the outcome and optionally add notes.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setClosingSetup(null)}
+                className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                aria-label="Close modal"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <label className="space-y-1 block">
+                <span className="text-xs text-muted-foreground">Status</span>
+                <select
+                  value={closeStatus}
+                  onChange={(e) => setCloseStatus(e.target.value as Setup['close_outcome'])}
+                  className="w-full rounded-md border border-border bg-input px-3 py-2 text-sm"
+                >
+                  <option value="successful">Successful</option>
+                  <option value="failed">Failed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </label>
+
+              <label className="space-y-1 block">
+                <span className="text-xs text-muted-foreground">Notes (optional)</span>
+                <textarea
+                  value={closeNotes}
+                  onChange={(e) => setCloseNotes(e.target.value)}
+                  rows={4}
+                  placeholder="Add any context or lessons learned..."
+                  className="w-full rounded-md border border-border bg-input px-3 py-2 text-sm resize-none"
+                />
+              </label>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setClosingSetup(null)}
+                  className="rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSubmitClose()}
+                  disabled={closing}
+                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {closing && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Save Closure
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

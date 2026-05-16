@@ -8,8 +8,10 @@ import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { useAiStore } from '@/store/aiStore'
 import { useStrategyStore } from '@/store/strategyStore'
+import { useNotificationStore } from '@/store/notificationStore'
 import { STRATEGY_TAG_LABELS, calcExitPriceFromExecutions } from '@/lib/tradeUtils'
 import { optimizeImageForUpload } from '@/lib/imageOptimization'
+import { auth } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import type { CreateTradeInput, StrategyTag } from '@/types'
 
@@ -164,10 +166,17 @@ export function NewTradePage() {
   const { state } = useLocation()
   const prefill = (state as { prefill?: Partial<TradeFormData> } | null)?.prefill
   const isEdit = !!id
-  const { user, selectedAccountId, selectedAccount } = useAuthStore()
-  const { createTrade, updateTrade, trades, uploadScreenshot, deleteScreenshot } = useTradeStore()
-  const { runSetupCheck, setupLoading, setupResult, setupError, clearSetupResult } = useAiStore()
+  const {
+    user,
+    selectedAccountId,
+    selectedAccount,
+    loading: authLoading,
+    initialized,
+  } = useAuthStore()
+  const { createTrade, updateTrade, trades, uploadScreenshot, deleteScreenshot, error: tradeError } = useTradeStore()
+  const { runSetupCheck, setupLoading, setupResult, setupError, setupGeneratedAt, clearSetupResult } = useAiStore()
   const { strategies, fetchStrategies } = useStrategyStore()
+  const pushNotification = useNotificationStore((state) => state.push)
 
   const existingTrade = isEdit ? trades.find((t) => t.id === id) : undefined
 
@@ -369,6 +378,12 @@ export function NewTradePage() {
   }
 
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const authReady = initialized && !authLoading && !!user?.id
+  const saveBlockedReason = !initialized || authLoading
+    ? 'Authentication is still loading. Please wait a moment and try again.'
+    : !selectedAccountId
+      ? 'Select an account before saving a trade.'
+      : null
 
   const handleFileAdd = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
@@ -383,7 +398,29 @@ export function NewTradePage() {
   }
 
   const onSubmit = async (data: TradeFormData) => {
-    if (!user?.id || !selectedAccountId) return
+    if (saveBlockedReason) {
+      pushNotification({
+        kind: 'error',
+        variant: 'warning',
+        title: 'Trade not saved',
+        message: saveBlockedReason,
+      })
+      return
+    }
+
+    const session = await auth.ensureActiveSession()
+    const currentUserId = session?.user?.id
+
+    if (!currentUserId || !selectedAccountId) {
+      pushNotification({
+        kind: 'error',
+        variant: 'error',
+        title: 'Trade not saved',
+        message: 'Your session is no longer active. Please sign in again and resubmit the trade.',
+      })
+      return
+    }
+
     console.log('✅ onSubmit fired', data)
 
     // Auto-fill exit_price from executions if status is closed and field is empty
@@ -424,20 +461,20 @@ export function NewTradePage() {
       const updated = await updateTrade(id, basePayload)
       if (updated) {
         for (const file of pendingFiles) {
-          await uploadScreenshot(user.id, id, file)
+          await uploadScreenshot(currentUserId, id, file)
         }
         navigate(`/trades/${id}`)
       }
     } else {
       const createPayload = {
         ...(basePayload as CreateTradeInput),
-        user_id: user.id,
+        user_id: currentUserId,
         account_id: selectedAccountId,
       } as CreateTradeInput & { user_id: string; account_id: string }
       const created = await createTrade(createPayload)
       if (created) {
         for (const file of pendingFiles) {
-          await uploadScreenshot(user.id, created.id, file)
+          await uploadScreenshot(currentUserId, created.id, file)
         }
         navigate(`/trades/${created.id}`)
       }
@@ -464,6 +501,18 @@ export function NewTradePage() {
           </p>
         </div>
       </div>
+
+      {saveBlockedReason && (
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+          {saveBlockedReason}
+        </div>
+      )}
+
+      {tradeError && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {tradeError}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit, (errors) => console.error('❌ Validation errors', errors))} className="space-y-5">
         {/* ── Core fields ── */}
@@ -577,6 +626,7 @@ export function NewTradePage() {
 
             {setupResult && (
               <div className="mt-3 rounded-md border border-border bg-accent/20 p-3 space-y-2 text-sm">
+                <p className="text-xs text-muted-foreground">Generated on {new Date(setupGeneratedAt || Date.now()).toLocaleString()}</p>
                 <div className="flex items-center gap-3">
                   <span className={cn('px-2 py-0.5 rounded text-xs font-mono font-bold',
                     setupResult.rr_rating === 'excellent' || setupResult.rr_rating === 'good'
@@ -909,7 +959,7 @@ export function NewTradePage() {
           <div className="sticky bottom-16 md:static z-20 flex items-center gap-3 pt-2 pb-1 md:pb-0 -mx-4 px-4 md:mx-0 md:px-0 bg-background/95 md:bg-transparent border-t border-border/60 md:border-0 backdrop-blur-sm md:backdrop-blur-none">
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || !authReady || !selectedAccountId}
             className="flex items-center gap-2 bg-primary text-primary-foreground rounded-md px-6 py-2.5 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}

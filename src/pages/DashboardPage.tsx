@@ -105,7 +105,7 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const { user, selectedAccountId, subscription, fetchSubscription } = useAuthStore()
   const { trades, loading, fetchTrades } = useTradeStore()
-  const { runWeeklyDigest, digestLoading, digestResult, digestError, clearDigestError } = useAiStore()
+  const { runWeeklyDigest, digestLoading, digestResult, digestError, clearDigestError, digestGeneratedAt } = useAiStore()
   const [digestOpen, setDigestOpen] = useState(true) // Auto-expand if digest exists
   const [lastDigest, setLastDigest] = useState<any>(null)
   const [dateRangeFrom, setDateRangeFrom] = useState<string>('')
@@ -319,6 +319,7 @@ export function DashboardPage() {
     () =>
       Object.entries(stats.by_strategy)
         .map(([tag, { count, pnl, win_rate }]) => ({
+          tag,
           name: STRATEGY_TAG_LABELS[tag] ?? tag,
           pnl,
           count,
@@ -1193,6 +1194,11 @@ export function DashboardPage() {
 
               {(digestResult || lastDigest) && digestOpen && (
                 <div className="p-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  <div className="xl:col-span-2 rounded-md border border-border/60 bg-background/30 px-3 py-2">
+                    <p className="text-xs text-muted-foreground">
+                      Generated on {new Date(digestGeneratedAt || lastDigest?.generated_at || Date.now()).toLocaleString()}
+                    </p>
+                  </div>
                   <div className="xl:col-span-2 rounded-md border border-border/70 bg-muted/20 p-3">
                     <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
                       Recent Trend (10 Trades)
@@ -1529,9 +1535,9 @@ export function DashboardPage() {
                           dataKey="pnl"
                           radius={[0, 3, 3, 0]}
                           onClick={(barData: any) => {
-                            const tagName = barData?.payload?.name
-                            if (!tagName) return
-                            navigate(`/trades?drilldown=tags&filterStrategy=${encodeURIComponent(tagName)}`)
+                            const tagKey = barData?.payload?.tag
+                            if (!tagKey) return
+                            navigate(`/trades?drilldown=tags&filterStrategy=${encodeURIComponent(tagKey)}`)
                           }}
                         >
                           {strategyChartData.map((entry, i) => (

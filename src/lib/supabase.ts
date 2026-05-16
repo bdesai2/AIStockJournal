@@ -158,6 +158,17 @@ export const auth = {
 
   getSession: () => supabase.auth.getSession(),
 
+  ensureActiveSession: async () => {
+    let { data: { session } } = await supabase.auth.getSession()
+
+    if (session?.expires_at && session.expires_at * 1000 < Date.now()) {
+      const { data } = await supabase.auth.refreshSession()
+      session = data.session
+    }
+
+    return session
+  },
+
   onAuthStateChange: (cb: Parameters<typeof supabase.auth.onAuthStateChange>[0]) =>
     supabase.auth.onAuthStateChange(cb),
 }

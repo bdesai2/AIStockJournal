@@ -20,11 +20,13 @@ interface AiState {
   setupLoading: boolean
   setupError: string | null
   setupResult: SetupCheckResult | null
+  setupGeneratedAt: string | null
 
   // Feature 3: Weekly Digest
   digestLoading: boolean
   digestError: string | null
   digestResult: WeeklyDigestResult | null
+  digestGeneratedAt: string | null
 
   // Feature 4: Trade Analysis (for open trades)
   analysisLoading: boolean
@@ -53,10 +55,12 @@ export const useAiStore = create<AiState>((set) => ({
   setupLoading: false,
   setupError: null,
   setupResult: null,
+  setupGeneratedAt: null,
 
   digestLoading: false,
   digestError: null,
   digestResult: null,
+  digestGeneratedAt: null,
 
   analysisLoading: false,
   analysisError: null,
@@ -142,10 +146,10 @@ export const useAiStore = create<AiState>((set) => ({
       return
     }
 
-    set({ setupLoading: true, setupError: null, setupResult: null })
+    set({ setupLoading: true, setupError: null, setupResult: null, setupGeneratedAt: null })
     try {
       const result = await aiApi.setupCheck(params)
-      set({ setupLoading: false, setupResult: result })
+      set({ setupLoading: false, setupResult: result, setupGeneratedAt: new Date().toISOString() })
     } catch (err) {
       set({
         setupLoading: false,
@@ -154,7 +158,7 @@ export const useAiStore = create<AiState>((set) => ({
     }
   },
 
-  clearSetupResult: () => set({ setupResult: null, setupError: null }),
+  clearSetupResult: () => set({ setupResult: null, setupError: null, setupGeneratedAt: null }),
 
   runWeeklyDigest: async (trades) => {
     // Check if user has access to weekly digest
@@ -167,10 +171,11 @@ export const useAiStore = create<AiState>((set) => ({
       return
     }
 
-    set({ digestLoading: true, digestError: null, digestResult: null })
+    set({ digestLoading: true, digestError: null, digestResult: null, digestGeneratedAt: null })
     try {
       const result = await aiApi.weeklyDigest(trades)
-      set({ digestLoading: false, digestResult: result })
+      const generatedAt = new Date().toISOString()
+      set({ digestLoading: false, digestResult: result, digestGeneratedAt: generatedAt })
       const { push } = useNotificationStore.getState()
       push({
         kind: 'weekly_digest_ready',
@@ -194,7 +199,7 @@ export const useAiStore = create<AiState>((set) => ({
           increasing_mistakes: result.increasing_mistakes,
           performance_drivers: result.performance_drivers,
           trade_count: trades.length,
-          generated_at: new Date().toISOString(),
+          generated_at: generatedAt,
         })
       } catch (dbErr) {
         console.error('Failed to save digest to DB:', dbErr)

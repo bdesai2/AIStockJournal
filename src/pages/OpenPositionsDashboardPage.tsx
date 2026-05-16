@@ -346,7 +346,7 @@ export function OpenPositionsDashboardPage() {
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Analysis Status</p>
           <p className="mt-2 text-sm font-medium capitalize">{portfolioStats.cachedStatus}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {cachedAt ? `Saved ${new Date(cachedAt).toLocaleString()}` : 'No saved analysis for current positions'}
+            {cachedAt ? `Generated on ${new Date(cachedAt).toLocaleString()}` : 'No saved analysis for current positions'}
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
@@ -483,7 +483,7 @@ export function OpenPositionsDashboardPage() {
                               <div className="flex items-center justify-between gap-3">
                                 <h3 className="text-sm font-display tracking-wider">TRADE AI ANALYSIS</h3>
                                 {trade.open_trade_analyzed_at && (
-                                  <p className="text-xs text-muted-foreground">Saved {toDisplayDate(trade.open_trade_analyzed_at)}</p>
+                                  <p className="text-xs text-muted-foreground">Generated on {toDisplayDate(trade.open_trade_analyzed_at)}</p>
                                 )}
                               </div>
 

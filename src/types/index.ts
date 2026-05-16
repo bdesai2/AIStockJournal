@@ -99,6 +99,7 @@ export interface Setup {
   status: SetupStatus
   close_outcome?: SetupCloseOutcome
   closed_at?: string
+  close_notes?: string
   strategy_id?: string
   reasons?: string
   entry_price: number

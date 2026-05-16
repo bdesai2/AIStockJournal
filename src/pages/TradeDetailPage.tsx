@@ -487,7 +487,7 @@ export function TradeDetailPage() {
                 </div>
                 {trade.ai_analyzed_at && (
                   <span className="text-xs text-muted-foreground ml-auto">
-                    {fmt.date(trade.ai_analyzed_at)}
+                    Generated on {fmt.dateTime(trade.ai_analyzed_at)}
                   </span>
                 )}
               </div>
@@ -518,7 +518,7 @@ export function TradeDetailPage() {
               </div>
 
               {trade.open_trade_analyzed_at && (
-                <p className="text-xs text-muted-foreground">Saved {fmt.dateTime(trade.open_trade_analyzed_at)}</p>
+                <p className="text-xs text-muted-foreground">Generated on {fmt.dateTime(trade.open_trade_analyzed_at)}</p>
               )}
 
               <div className="grid grid-cols-2 gap-3">

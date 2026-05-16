@@ -26,6 +26,7 @@ import {
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { useJournalStore } from '@/store/journalStore'
+import { auth } from '@/lib/supabase'
 import { fmt, pnlColor } from '@/lib/tradeUtils'
 import { exportMonthlyJournalReport } from '@/lib/reportExport'
 import type { DailyJournal, Trade } from '@/types'
@@ -81,7 +82,32 @@ export function JournalPage() {
                          currentDate.getMonth() === today.getMonth()
 
   useEffect(() => {
-    if (user?.id) fetchJournalsForMonth(user.id, year, month)
+    let cancelled = false
+
+    const loadJournals = async () => {
+      if (!user?.id) return
+      await auth.ensureActiveSession()
+      if (cancelled) return
+      await fetchJournalsForMonth(user.id, year, month)
+    }
+
+    void loadJournals()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id, year, month, fetchJournalsForMonth])
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible' || !user?.id) return
+      void auth.ensureActiveSession().then(() => {
+        void fetchJournalsForMonth(user.id, year, month)
+      })
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange)
   }, [user?.id, year, month, fetchJournalsForMonth])
 
   // Populate form when selected date changes
@@ -231,7 +257,7 @@ export function JournalPage() {
         </button>
       </div>
 
-      <div className="flex flex-col xl:flex-row gap-4">
+      <div className="flex flex-col gap-4">
         {/* ── Calendar ── */}
         <div className="flex-1 min-w-0 rounded-lg border border-border bg-card p-4">
           {/* Month navigation + summary */}
@@ -380,7 +406,7 @@ export function JournalPage() {
 
         {/* ── Day Detail Panel ── */}
         {selectedDate ? (
-          <div className="w-full xl:w-[380px] flex-shrink-0 rounded-lg border border-border bg-card flex flex-col max-h-[700px]">
+          <div className="w-full rounded-lg border border-border bg-card flex flex-col">
             {/* Panel header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
               <div>
@@ -409,46 +435,47 @@ export function JournalPage() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-5">
-              {/* Trades for this day */}
-              {selectedDayData && selectedDayData.trades_list.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
-                    Trades
-                  </p>
-                  <div className="space-y-1">
-                    {selectedDayData.trades_list.map((trade) => (
-                      <button
-                        key={trade.id}
-                        onClick={() => navigate(`/trades/${trade.id}`)}
-                        className="w-full flex items-center justify-between px-3 py-2 rounded-md bg-muted/40 hover:bg-muted transition-colors text-left group"
-                      >
-                        <div className="flex items-center gap-2">
-                          {trade.direction === 'long' ? (
-                            <TrendingUp className="w-3.5 h-3.5 text-[#00d4a1] flex-shrink-0" />
-                          ) : (
-                            <TrendingDown className="w-3.5 h-3.5 text-[#ff4d6d] flex-shrink-0" />
-                          )}
-                          <span className="text-sm font-mono font-medium">{trade.ticker}</span>
-                          <span className="text-xs text-muted-foreground capitalize">
-                            {trade.asset_type}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-sm font-mono ${pnlColor(trade.net_pnl)}`}>
-                            {fmt.currency(trade.net_pnl)}
-                          </span>
-                          <ArrowRight className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                      </button>
-                    ))}
+            <div className="p-4">
+              <div className="flex flex-col lg:flex-row gap-5">
+                {/* Trades for this day */}
+                {selectedDayData && selectedDayData.trades_list.length > 0 && (
+                  <div className="lg:w-56 flex-shrink-0">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
+                      Trades
+                    </p>
+                    <div className="space-y-1">
+                      {selectedDayData.trades_list.map((trade) => (
+                        <button
+                          key={trade.id}
+                          onClick={() => navigate(`/trades/${trade.id}`)}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-md bg-muted/40 hover:bg-muted transition-colors text-left group"
+                        >
+                          <div className="flex items-center gap-2">
+                            {trade.direction === 'long' ? (
+                              <TrendingUp className="w-3.5 h-3.5 text-[#00d4a1] flex-shrink-0" />
+                            ) : (
+                              <TrendingDown className="w-3.5 h-3.5 text-[#ff4d6d] flex-shrink-0" />
+                            )}
+                            <span className="text-sm font-mono font-medium">{trade.ticker}</span>
+                            <span className="text-xs text-muted-foreground capitalize">
+                              {trade.asset_type}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-sm font-mono ${pnlColor(trade.net_pnl)}`}>
+                              {fmt.currency(trade.net_pnl)}
+                            </span>
+                            <ArrowRight className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Journal form */}
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
+              <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3 lg:col-span-2">
                   Journal Entry
                 </p>
 
@@ -536,10 +563,10 @@ export function JournalPage() {
                       setForm((f) => ({ ...f, pre_market_notes: e.target.value }))
                     }
                     placeholder="Outlook, planned trades, goals for today..."
-                    rows={3}
+                    rows={6}
                     autoCapitalize="sentences"
                     spellCheck
-                    className="w-full rounded-md bg-background border border-border px-3 py-2 text-sm placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+                    className="w-full rounded-md bg-background border border-border px-3 py-2 text-sm placeholder:text-muted-foreground/50 resize-y focus:outline-none focus:ring-1 focus:ring-ring font-mono"
                   />
                 </div>
 
@@ -554,15 +581,15 @@ export function JournalPage() {
                       setForm((f) => ({ ...f, post_market_notes: e.target.value }))
                     }
                     placeholder="What happened? Key lessons learned..."
-                    rows={3}
+                    rows={6}
                     autoCapitalize="sentences"
                     spellCheck
-                    className="w-full rounded-md bg-background border border-border px-3 py-2 text-sm placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+                    className="w-full rounded-md bg-background border border-border px-3 py-2 text-sm placeholder:text-muted-foreground/50 resize-y focus:outline-none focus:ring-1 focus:ring-ring font-mono"
                   />
                 </div>
 
                 {/* Goals */}
-                <div className="mb-3">
+                <div className="mb-3 lg:col-span-2">
                   <label className="text-xs text-muted-foreground mb-1.5 block">
                     Goals{' '}
                     <span className="text-muted-foreground/50">(one per line)</span>
@@ -573,15 +600,15 @@ export function JournalPage() {
                       setForm((f) => ({ ...f, goals_text: e.target.value }))
                     }
                     placeholder={`Follow my trading plan\nNo revenge trading\nMax 3 trades today`}
-                    rows={3}
+                    rows={4}
                     autoCapitalize="sentences"
                     spellCheck
-                    className="w-full rounded-md bg-background border border-border px-3 py-2 text-sm placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+                    className="w-full rounded-md bg-background border border-border px-3 py-2 text-sm placeholder:text-muted-foreground/50 resize-y focus:outline-none focus:ring-1 focus:ring-ring font-mono"
                   />
                 </div>
 
                 {/* Reviewed rules toggle */}
-                <div className="mb-4">
+                <div className="mb-4 lg:col-span-2">
                   <button
                     onClick={() =>
                       setForm((f) => ({ ...f, reviewed_rules: !f.reviewed_rules }))
@@ -598,7 +625,7 @@ export function JournalPage() {
                 </div>
 
                 {/* Save */}
-                <div className="sticky bottom-0 pt-2 pb-1 bg-card/95 backdrop-blur-sm border-t border-border/60">
+                <div className="pt-2 pb-1 border-t border-border/60 lg:col-span-2">
                   <button
                     onClick={handleSave}
                     disabled={saving}
@@ -608,11 +635,12 @@ export function JournalPage() {
                   </button>
                 </div>
               </div>
+              </div>
             </div>
           </div>
         ) : (
           /* Empty state placeholder */
-          <div className="hidden xl:flex xl:w-[380px] flex-shrink-0 rounded-lg border border-dashed border-border bg-card/30 items-center justify-center">
+          <div className="flex rounded-lg border border-dashed border-border bg-card/30 items-center justify-center py-12">
             <div className="text-center p-8">
               <BookOpen className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">

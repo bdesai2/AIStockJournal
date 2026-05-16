@@ -1,7 +1,14 @@
 # Trade Reflection - Central Feature Registry
 
-Last updated: 2026-05-14
+Last updated: 2026-05-16
 Purpose: This is the canonical feature inventory and milestone status for the stock-journal app.
+
+## Release 3.0.0 Notes
+
+- [x] Journal calendar now refreshes saved entries more reliably without requiring a full page reload.
+- [x] Setup closure flow now supports a modal with status selection and optional notes.
+- [x] Setup area now carries a visible beta tag.
+- [x] A+ Setup Generator is temporarily disabled while the workflow is being reworked.
 
 ## Milestone Status Snapshot
 
@@ -13,7 +20,7 @@ Purpose: This is the canonical feature inventory and milestone status for the st
 - [x] M6.5: Subscription system (Free/Pro), Stripe, admin management
 - [x] M6 (majority): Legal pages, privacy controls, cookie consent, data export, session timeout, audit visibility
 - [x] M8 (core): Open Positions dashboard, portfolio AI scoring, persisted per-trade AI analysis
-- [ ] M8 (planned phases): A+ setup generator flow and Supabase custom domain OAuth remediation
+- [ ] M8 (planned phases): Supabase custom domain OAuth remediation
 - [x] M5 (remaining polish): mobile/performance/report-export backlog items
 - [x] M6 (remaining production hardening): deployment checklist and compliance verification tasks
 - [x] M7 (remaining hardening): unresolved security audit items and validation tasks
@@ -190,6 +197,13 @@ Purpose: This is the canonical feature inventory and milestone status for the st
 - [x] Expanded-row stability across multiple open rows (per-row expansion/loading/error state)
 - [x] Cache invalidation fix so per-trade AI saves do not clear overall portfolio analysis
 - [x] Trade detail page fallback to persisted open-trade AI analysis
+
+### 17) Setup Management
+
+- [x] Setup list view with filtering and screenshots
+- [x] Setup close/cancel modal with status selection and optional notes
+- [x] Setup beta tagging in navigation and page header
+- [ ] A+ Setup Generator rework and relaunch
 
 
 ## Not Yet Completed (Tracked Backlog)

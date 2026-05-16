@@ -60,6 +60,10 @@ self.addEventListener('fetch', (event) => {
   // Ignore non-HTTP(S) schemes
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
+  // Let the browser handle cross-origin resources directly. This avoids
+  // noisy SW fetch failures when CSP intentionally blocks third-party URLs.
+  if (url.origin !== self.location.origin) return;
+
   // Navigation requests: try network first, fallback to cached shell
   if (request.mode === 'navigate') {
     event.respondWith(networkFirst(request, STATIC_CACHE, true));
@@ -67,9 +71,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   // API requests (Supabase / API routes) → network-first
-  const isApiRequest =
-    url.origin !== self.location.origin ||
-    url.pathname.startsWith('/api/');
+  const isApiRequest = url.pathname.startsWith('/api/');
 
   if (isApiRequest) {
     event.respondWith(networkFirst(request, API_CACHE, false));

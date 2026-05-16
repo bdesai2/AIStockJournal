@@ -14,7 +14,6 @@ import {
   WifiOff,
   Wifi,
   MonitorDown,
-  Sparkles,
   Target,
 } from 'lucide-react'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
@@ -53,7 +52,6 @@ const NAV_ITEMS = [
   { to: '/setups', icon: Target, label: 'Setups' },
   { to: '/strategies', icon: Zap, label: 'Strategies' },
   { to: '/open-positions', icon: Zap, label: 'Open Positions' },
-  { to: '/setup-generator', icon: Sparkles, label: 'A+ Setups' },
 ]
 
 const MOBILE_NAV_ITEMS = [
@@ -64,10 +62,9 @@ const MOBILE_NAV_ITEMS = [
   { to: '/strategies', icon: Zap, label: 'Strategies' },
   { to: '/settings', icon: Settings, label: 'Settings' },
   { to: '/open-positions', icon: Zap, label: 'Open Positions' },
-  { to: '/setup-generator', icon: Sparkles, label: 'A+ Setups' },  
 ]
 
-const BETA_NAV_ROUTES = new Set(['/open-positions', '/setup-generator'])
+const BETA_NAV_ROUTES = new Set(['/setups', '/open-positions'])
 
 function getBreadcrumbs(pathname: string): Array<{ to: string; label: string }> {
   const parts = pathname.split('/').filter(Boolean)
@@ -83,7 +80,6 @@ function getBreadcrumbs(pathname: string): Array<{ to: string; label: string }> 
     let label = part
     if (part === 'dashboard') label = 'Dashboard'
     if (part === 'open-positions') label = 'Open Positions'
-    if (part === 'setup-generator') label = 'A+ Setups'
     if (part === 'trades') label = 'Trades'
     if (part === 'new') label = 'New Trade'
     if (part === 'journal') label = 'Journal'
