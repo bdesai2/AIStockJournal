@@ -10,7 +10,7 @@ interface SessionConfig {
 
 const DEFAULT_CONFIG: SessionConfig = {
   warningMinutes: 5,
-  timeoutMinutes: 30,
+  timeoutMinutes: 120,
   checkFrequency: 1000,
 }
 

@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useAiStore } from '@/store/aiStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { supabase } from '@/lib/supabase'
+import { cn } from '@/lib/utils'
 import type { OpenTradeAnalysisSnapshot, Trade } from '@/types'
 
 interface AnalysisResponse {
@@ -310,6 +311,106 @@ export function OpenPositionsDashboardPage() {
     setExpandedTradeLoadingIds((prev) => prev.filter((id) => id !== trade.id))
   }
 
+  const renderTradeAnalysisDetails = (trade: Trade, savedAnalysis?: OpenTradeAnalysisSnapshot) => (
+    <div className="space-y-3 rounded-md border border-border/70 bg-card p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-display tracking-wider">TRADE AI ANALYSIS</h3>
+        {trade.open_trade_analyzed_at && (
+          <p className="text-xs text-muted-foreground">Generated on {toDisplayDate(trade.open_trade_analyzed_at)}</p>
+        )}
+      </div>
+
+      {expandedTradeLoadingIds.includes(trade.id) && !savedAnalysis && (
+        <div className="flex items-center gap-2 rounded border border-border/70 bg-background/40 p-3 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading and saving AI analysis...
+        </div>
+      )}
+
+      {expandedTradeErrors[trade.id] && !savedAnalysis && (
+        <div className="rounded border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+          <p>{expandedTradeErrors[trade.id]}</p>
+          <button
+            onClick={() => void ensureExpandedTradeAnalysis(trade)}
+            className="mt-2 inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Retry Analysis
+          </button>
+        </div>
+      )}
+
+      {savedAnalysis && (
+        <>
+          <div className="rounded border border-border/70 bg-background/40 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Market Overview</p>
+            <p className="mt-1 text-sm leading-6 text-foreground/90">{savedAnalysis.market_overview}</p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded border border-border/70 bg-background/40 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Current Price Est.</p>
+              <p className="mt-1 text-sm font-mono text-foreground">{formatMoney(savedAnalysis.current_price_estimate)}</p>
+            </div>
+            <div className="rounded border border-border/70 bg-background/40 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Est. P&amp;L</p>
+              <p className={`mt-1 text-sm font-mono ${pnlClass(savedAnalysis.estimated_pnl)}`}>
+                {savedAnalysis.estimated_pnl >= 0 ? '+' : ''}{formatMoney(savedAnalysis.estimated_pnl)}
+              </p>
+            </div>
+            <div className="rounded border border-border/70 bg-background/40 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Est. Return</p>
+              <p className={`mt-1 text-sm font-mono ${pnlClass(savedAnalysis.estimated_pnl)}`}>
+                {savedAnalysis.estimated_pnl_percent >= 0 ? '+' : ''}{savedAnalysis.estimated_pnl_percent.toFixed(2)}%
+              </p>
+            </div>
+            <div className="rounded border border-border/70 bg-background/40 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recommendation</p>
+              <p className="mt-1 text-sm font-mono capitalize text-primary">{savedAnalysis.recommendation}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="rounded border border-[#00d4a1]/30 bg-[#00d4a1]/10 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#73f2d0]">Bullish Factors</p>
+              <ul className="mt-2 space-y-1 text-sm text-[#baf9ea]">
+                {savedAnalysis.bullish_factors.map((factor, index) => (
+                  <li key={index} className="flex gap-2">
+                    <span>+</span>
+                    <span>{factor}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded border border-[#ff4d6d]/30 bg-[#ff4d6d]/10 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#ff9bb0]">Bearish Factors</p>
+              <ul className="mt-2 space-y-1 text-sm text-[#ffd3dd]">
+                {savedAnalysis.bearish_factors.map((factor, index) => (
+                  <li key={index} className="flex gap-2">
+                    <span>-</span>
+                    <span>{factor}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="rounded border border-border/70 bg-background/40 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Technical Outlook</p>
+              <p className="mt-1 text-sm leading-6 text-foreground/90">{savedAnalysis.technical_outlook}</p>
+            </div>
+            <div className="rounded border border-border/70 bg-background/40 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Confidence / Levels</p>
+              <p className="mt-1 text-sm text-foreground/90">Confidence: <span className="font-mono capitalize">{savedAnalysis.confidence}</span></p>
+              <p className="mt-1 text-sm text-foreground/90">Resistance: <span className="font-mono">{formatMoney(savedAnalysis.next_key_levels.resistance)}</span></p>
+              <p className="mt-1 text-sm text-foreground/90">Support: <span className="font-mono">{formatMoney(savedAnalysis.next_key_levels.support)}</span></p>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+
   return (
     <div className="p-6 space-y-6 animate-in">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -386,7 +487,110 @@ export function OpenPositionsDashboardPage() {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            <div className="space-y-3 md:hidden">
+              {openTrades.map((trade, i) => {
+                const score = analysis?.per_trade_scorecard?.find((row) => row.ticker === trade.ticker && row.idx === i + 1)
+                const savedAnalysis = expandedTradeAnalysisById[trade.id] ?? trade.open_trade_analysis as OpenTradeAnalysisSnapshot | undefined
+                const isOption = trade.asset_type === 'option'
+                const entry = score?.entry ?? trade.entry_price
+                const current = score?.current ?? null
+                const pnlPercent = score?.pnl_percent ?? null
+                const grade = score?.grade ?? null
+                const urgentAction = score?.urgent_action ?? null
+                const linkedTrade = (openTradesByTicker.get(trade.ticker) ?? [trade])[0]
+                const isExpanded = expandedTradeIds.includes(trade.id)
+
+                const toggleExpanded = () => {
+                  const nextIsExpanded = !isExpanded
+
+                  setExpandedTradeIds(nextIsExpanded ? [trade.id] : [])
+
+                  if (nextIsExpanded && !savedAnalysis) {
+                    void ensureExpandedTradeAnalysis(trade)
+                  }
+                }
+
+                return (
+                  <div
+                    key={trade.id}
+                    className={cn(
+                      'rounded-lg border bg-card transition-colors',
+                      isExpanded ? 'border-amber-500/50 bg-amber-500/5' : 'border-border'
+                    )}
+                  >
+                    <button
+                      type="button"
+                      className="flex w-full items-start justify-between gap-3 px-4 py-4 text-left"
+                      onClick={toggleExpanded}
+                      aria-expanded={isExpanded}
+                    >
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-border bg-background px-2 font-mono text-xs text-muted-foreground">
+                            {i + 1}
+                          </span>
+                          <span className="text-base font-semibold tracking-wide text-foreground">{trade.ticker.toUpperCase()}</span>
+                          {trade.asset_type && (
+                            <span className="rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                              {trade.asset_type}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="rounded border border-border/70 bg-background/40 px-2 py-2">
+                            <p className="uppercase tracking-wider text-muted-foreground">Entry</p>
+                            <p className="mt-1 font-mono text-sm text-foreground">${entry.toFixed(2)}</p>
+                          </div>
+                          <div className="rounded border border-border/70 bg-background/40 px-2 py-2">
+                            <p className="uppercase tracking-wider text-muted-foreground">Current</p>
+                            <p className="mt-1 font-mono text-sm text-foreground">{isOption ? '—' : current != null ? `$${current.toFixed(2)}` : '—'}</p>
+                          </div>
+                          <div className="rounded border border-border/70 bg-background/40 px-2 py-2">
+                            <p className="uppercase tracking-wider text-muted-foreground">P&amp;L %</p>
+                            <p className={`mt-1 font-mono text-sm ${pnlPercent != null ? pnlClass(pnlPercent) : 'text-muted-foreground'}`}>
+                              {isOption || pnlPercent == null ? '—' : `${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(1)}%`}
+                            </p>
+                          </div>
+                          <div className="rounded border border-border/70 bg-background/40 px-2 py-2">
+                            <p className="uppercase tracking-wider text-muted-foreground">Grade</p>
+                            <p className={`mt-1 font-semibold text-sm ${grade ? gradeClass(grade) : 'text-muted-foreground'}`}>
+                              {isOption || !grade ? '—' : grade}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="rounded border border-border/70 bg-background/40 px-2 py-2 text-xs">
+                          <p className="uppercase tracking-wider text-muted-foreground">Next Suggested Step</p>
+                          <p className="mt-1 text-sm leading-5 text-foreground/90">{isOption || !urgentAction ? '—' : urgentAction}</p>
+                        </div>
+                      </div>
+
+                      <ChevronDown className={`mt-1 h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {isExpanded && (
+                      <div className="border-t border-amber-500/40 bg-amber-500/5 px-4 pb-4">
+                        {renderTradeAnalysisDetails(trade, savedAnalysis)}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            navigate(`/trades/${linkedTrade.id}`)
+                          }}
+                          className="mt-3 inline-flex items-center rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+                        >
+                          Open Trade Detail
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[980px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
@@ -411,15 +615,11 @@ export function OpenPositionsDashboardPage() {
                   const urgentAction = score?.urgent_action ?? null
                   const linkedTrade = (openTradesByTicker.get(trade.ticker) ?? [trade])[0]
                   const isExpanded = expandedTradeIds.includes(trade.id)
-                  const isExpandedLoading = expandedTradeLoadingIds.includes(trade.id)
-                  const expandedTradeError = expandedTradeErrors[trade.id]
 
                   const toggleExpanded = () => {
                     const nextIsExpanded = !isExpanded
 
-                    setExpandedTradeIds((prev) => (
-                      nextIsExpanded ? [...prev, trade.id] : prev.filter((id) => id !== trade.id)
-                    ))
+                    setExpandedTradeIds(nextIsExpanded ? [trade.id] : [])
 
                     if (nextIsExpanded && !savedAnalysis) {
                       void ensureExpandedTradeAnalysis(trade)
@@ -429,7 +629,10 @@ export function OpenPositionsDashboardPage() {
                   return (
                     <Fragment key={trade.id}>
                       <tr
-                        className="cursor-pointer border-b border-border/70 hover:bg-accent/30"
+                        className={cn(
+                          'cursor-pointer border-b transition-colors hover:bg-accent/30',
+                          isExpanded ? 'border-amber-500/50 bg-amber-500/5' : 'border-border/70'
+                        )}
                         onClick={toggleExpanded}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
@@ -477,105 +680,9 @@ export function OpenPositionsDashboardPage() {
                       </tr>
 
                       {isExpanded && (
-                        <tr className="border-b border-border/70 bg-accent/10">
+                        <tr className="border-b border-amber-500/50 bg-amber-500/5">
                           <td colSpan={7} className="px-4 py-4">
-                            <div className="space-y-3 rounded-md border border-border/70 bg-card p-4">
-                              <div className="flex items-center justify-between gap-3">
-                                <h3 className="text-sm font-display tracking-wider">TRADE AI ANALYSIS</h3>
-                                {trade.open_trade_analyzed_at && (
-                                  <p className="text-xs text-muted-foreground">Generated on {toDisplayDate(trade.open_trade_analyzed_at)}</p>
-                                )}
-                              </div>
-
-                              {isExpandedLoading && !savedAnalysis && (
-                                <div className="flex items-center gap-2 rounded border border-border/70 bg-background/40 p-3 text-sm text-muted-foreground">
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  Loading and saving AI analysis...
-                                </div>
-                              )}
-
-                              {expandedTradeError && !savedAnalysis && (
-                                <div className="rounded border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
-                                  <p>{expandedTradeError}</p>
-                                  <button
-                                    onClick={() => void ensureExpandedTradeAnalysis(trade)}
-                                    className="mt-2 inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                                  >
-                                    Retry Analysis
-                                  </button>
-                                </div>
-                              )}
-
-                              {savedAnalysis && (
-                                <>
-                                  <div className="rounded border border-border/70 bg-background/40 p-3">
-                                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Market Overview</p>
-                                    <p className="mt-1 text-sm leading-6 text-foreground/90">{savedAnalysis.market_overview}</p>
-                                  </div>
-
-                                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                                    <div className="rounded border border-border/70 bg-background/40 p-3">
-                                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Current Price Est.</p>
-                                      <p className="mt-1 text-sm font-mono text-foreground">{formatMoney(savedAnalysis.current_price_estimate)}</p>
-                                    </div>
-                                    <div className="rounded border border-border/70 bg-background/40 p-3">
-                                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Est. P&amp;L</p>
-                                      <p className={`mt-1 text-sm font-mono ${pnlClass(savedAnalysis.estimated_pnl)}`}>
-                                        {savedAnalysis.estimated_pnl >= 0 ? '+' : ''}{formatMoney(savedAnalysis.estimated_pnl)}
-                                      </p>
-                                    </div>
-                                    <div className="rounded border border-border/70 bg-background/40 p-3">
-                                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Est. Return</p>
-                                      <p className={`mt-1 text-sm font-mono ${pnlClass(savedAnalysis.estimated_pnl)}`}>
-                                        {savedAnalysis.estimated_pnl_percent >= 0 ? '+' : ''}{savedAnalysis.estimated_pnl_percent.toFixed(2)}%
-                                      </p>
-                                    </div>
-                                    <div className="rounded border border-border/70 bg-background/40 p-3">
-                                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recommendation</p>
-                                      <p className="mt-1 text-sm font-mono capitalize text-primary">{savedAnalysis.recommendation}</p>
-                                    </div>
-                                  </div>
-
-                                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                    <div className="rounded border border-[#00d4a1]/30 bg-[#00d4a1]/10 p-3">
-                                      <p className="text-xs font-semibold uppercase tracking-wider text-[#73f2d0]">Bullish Factors</p>
-                                      <ul className="mt-2 space-y-1 text-sm text-[#baf9ea]">
-                                        {savedAnalysis.bullish_factors.map((factor, index) => (
-                                          <li key={index} className="flex gap-2">
-                                            <span>+</span>
-                                            <span>{factor}</span>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                    <div className="rounded border border-[#ff4d6d]/30 bg-[#ff4d6d]/10 p-3">
-                                      <p className="text-xs font-semibold uppercase tracking-wider text-[#ff9bb0]">Bearish Factors</p>
-                                      <ul className="mt-2 space-y-1 text-sm text-[#ffd3dd]">
-                                        {savedAnalysis.bearish_factors.map((factor, index) => (
-                                          <li key={index} className="flex gap-2">
-                                            <span>-</span>
-                                            <span>{factor}</span>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  </div>
-
-                                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                    <div className="rounded border border-border/70 bg-background/40 p-3">
-                                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Technical Outlook</p>
-                                      <p className="mt-1 text-sm leading-6 text-foreground/90">{savedAnalysis.technical_outlook}</p>
-                                    </div>
-                                    <div className="rounded border border-border/70 bg-background/40 p-3">
-                                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Confidence / Levels</p>
-                                      <p className="mt-1 text-sm text-foreground/90">Confidence: <span className="font-mono capitalize">{savedAnalysis.confidence}</span></p>
-                                      <p className="mt-1 text-sm text-foreground/90">Resistance: <span className="font-mono">{formatMoney(savedAnalysis.next_key_levels.resistance)}</span></p>
-                                      <p className="mt-1 text-sm text-foreground/90">Support: <span className="font-mono">{formatMoney(savedAnalysis.next_key_levels.support)}</span></p>
-                                    </div>
-                                  </div>
-                                </>
-                              )}
-                            </div>
+                            {renderTradeAnalysisDetails(trade, savedAnalysis)}
                           </td>
                         </tr>
                       )}
@@ -584,7 +691,8 @@ export function OpenPositionsDashboardPage() {
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </section>
 
