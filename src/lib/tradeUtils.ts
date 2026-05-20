@@ -485,7 +485,8 @@ const EXECUTION_QTY_EPSILON_STOCK = 0.002
 
 export function calcExecutionsSummary(
   executions: TradeExecution[],
-  assetType: AssetType = 'stock'
+  assetType: AssetType = 'stock',
+  defaultOptionType?: 'call' | 'put'
 ): ExecutionSummary {
   const qtyEpsilon =
     assetType === 'stock' ? EXECUTION_QTY_EPSILON_STOCK : EXECUTION_QTY_EPSILON_DEFAULT
@@ -494,15 +495,42 @@ export function calcExecutionsSummary(
     (a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime()
   )
 
-  // FIFO queues for open long lots (from buys) and open short lots (from sells)
-  const longLots: { qty: number; price: number }[] = []
-  const shortLots: { qty: number; price: number }[] = []
+  // FIFO queues for open long/short lots by contract key.
+  // For options, key is option_type (call/put) so matching is done per contract type.
+  // For non-options, key collapses to a single shared queue.
+  type Lot = { qty: number; price: number }
+  const longLotsByKey = new Map<string, Lot[]>()
+  const shortLotsByKey = new Map<string, Lot[]>()
+
+  const getContractKey = (exec: TradeExecution): string => {
+    if (assetType !== 'option') return '__base__'
+    return exec.option_type ?? defaultOptionType ?? '__unknown_option__'
+  }
+
+  const getLongLots = (key: string): Lot[] => {
+    const existing = longLotsByKey.get(key)
+    if (existing) return existing
+    const created: Lot[] = []
+    longLotsByKey.set(key, created)
+    return created
+  }
+
+  const getShortLots = (key: string): Lot[] => {
+    const existing = shortLotsByKey.get(key)
+    if (existing) return existing
+    const created: Lot[] = []
+    shortLotsByKey.set(key, created)
+    return created
+  }
   let realizedPnl = 0
   let totalFees = 0
   let entryDate: string | null = null
   let exitDate: string | null = null
 
   for (const exec of sorted) {
+    const contractKey = getContractKey(exec)
+    const longLots = getLongLots(contractKey)
+    const shortLots = getShortLots(contractKey)
     totalFees += exec.fee ?? 0
 
     if (exec.action === 'buy') {
@@ -554,13 +582,16 @@ export function calcExecutionsSummary(
 
   realizedPnl -= totalFees
 
-  const netLongQtyRaw = longLots.reduce((s, l) => s + l.qty, 0)
-  const netShortQtyRaw = shortLots.reduce((s, l) => s + l.qty, 0)
+  const allLongLots = Array.from(longLotsByKey.values()).flat()
+  const allShortLots = Array.from(shortLotsByKey.values()).flat()
+
+  const netLongQtyRaw = allLongLots.reduce((s, l) => s + l.qty, 0)
+  const netShortQtyRaw = allShortLots.reduce((s, l) => s + l.qty, 0)
   const netLongQty = netLongQtyRaw <= qtyEpsilon ? 0 : netLongQtyRaw
   const netShortQty = netShortQtyRaw <= qtyEpsilon ? 0 : netShortQtyRaw
   const netQty = netLongQty + netShortQty
 
-  const openLots = netLongQty > 0 ? longLots : shortLots
+  const openLots = netLongQty > 0 ? allLongLots : allShortLots
   const openQty = openLots.reduce((s, l) => s + l.qty, 0)
   const totalCost = openLots.reduce((s, l) => s + l.qty * l.price, 0)
   const avgCostBasis = openQty > 0 ? totalCost / openQty : 0

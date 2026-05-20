@@ -27,7 +27,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { useJournalStore } from '@/store/journalStore'
 import { auth } from '@/lib/supabase'
-import { fmt, pnlColor } from '@/lib/tradeUtils'
+import { calcExecutionsSummary, fmt, pnlColor } from '@/lib/tradeUtils'
 import { exportMonthlyJournalReport } from '@/lib/reportExport'
 import type { DailyJournal, Trade } from '@/types'
 
@@ -39,6 +39,13 @@ type DayData = { pnl: number; count: number; trades_list: Trade[] }
 type GridCell =
   | { type: 'empty'; key: string }
   | { type: 'day'; date: Date; dateStr: string }
+
+function toLocalDateKey(value?: string): string | null {
+  if (!value) return null
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return null
+  return format(d, 'yyyy-MM-dd')
+}
 
 function cellClasses(pnl: number | null, isSelected: boolean): string {
   if (isSelected) return 'bg-primary/10 border-primary'
@@ -124,20 +131,68 @@ export function JournalPage() {
     })
   }, [selectedDate, journals])
 
-  // Build per-day P&L map from closed trades
+  // Build per-day realized P&L map.
+  // This includes partial profit taking from still-open trades by using executions.
   const dailyData = useMemo(() => {
     const map = new Map<string, DayData>()
-    trades
-      .filter((t) => t.status === 'closed' && t.exit_date)
-      .forEach((t) => {
-        const day = t.exit_date!.slice(0, 10)
-        const existing = map.get(day) ?? { pnl: 0, count: 0, trades_list: [] }
-        map.set(day, {
-          pnl: existing.pnl + (t.net_pnl ?? 0),
-          count: existing.count + 1,
-          trades_list: [...existing.trades_list, t],
-        })
+
+    const addDayPnl = (day: string, trade: Trade, pnl: number) => {
+      const existing = map.get(day) ?? { pnl: 0, count: 0, trades_list: [] }
+      map.set(day, {
+        pnl: existing.pnl + pnl,
+        count: existing.count + 1,
+        trades_list: [...existing.trades_list, trade],
       })
+    }
+
+    for (const trade of trades) {
+      const executions = trade.executions ?? []
+
+      // If executions exist, use execution-derived realized P&L and attribute it to
+      // the day where realized changes (partial exits included).
+      if (executions.length > 0) {
+        const sorted = [...executions].sort(
+          (a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime()
+        )
+
+        const dayBreaks: number[] = []
+        let currentDay = ''
+        for (let i = 0; i < sorted.length; i += 1) {
+          const day = toLocalDateKey(sorted[i].datetime)
+          if (!day) continue
+          if (day !== currentDay) {
+            currentDay = day
+            dayBreaks.push(i)
+          }
+        }
+
+        let previousRealized = 0
+        for (let i = 0; i < dayBreaks.length; i += 1) {
+          const startIdx = dayBreaks[i]
+          const endExclusive = i + 1 < dayBreaks.length ? dayBreaks[i + 1] : sorted.length
+          const day = toLocalDateKey(sorted[startIdx].datetime)
+          if (!day) continue
+          const upto = sorted.slice(0, endExclusive)
+          const summary = calcExecutionsSummary(upto, trade.asset_type, trade.option_type)
+          const dayRealized = summary.realizedPnl - previousRealized
+          previousRealized = summary.realizedPnl
+
+          if (Math.abs(dayRealized) > 1e-9) {
+            addDayPnl(day, trade, dayRealized)
+          }
+        }
+
+        continue
+      }
+
+      // Fallback for legacy trades without executions.
+      if (trade.status === 'closed' && trade.exit_date) {
+        const day = toLocalDateKey(trade.exit_date)
+        if (!day) continue
+        addDayPnl(day, trade, trade.net_pnl ?? 0)
+      }
+    }
+
     return map
   }, [trades])
 

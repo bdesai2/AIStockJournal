@@ -28,6 +28,7 @@ export interface TradeExecution {
   trade_id: string
   user_id: string
   action: 'buy' | 'sell'
+  option_type?: OptionType   // call | put (required for option executions)
   datetime: string           // ISO datetime
   quantity: number
   price: number

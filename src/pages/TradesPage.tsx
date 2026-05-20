@@ -634,6 +634,9 @@ export function TradesPage() {
           <div className="hidden lg:block w-16 text-right" >
             <span className="sr-only text-xs text-muted-foreground">Grade</span>
           </div>
+          <div className="hidden sm:block w-7 text-right">
+            <span className="sr-only text-xs text-muted-foreground">Execution Notes</span>
+          </div>
         </div>
 
         {loading && trades.length === 0 ? (

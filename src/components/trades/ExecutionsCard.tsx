@@ -38,6 +38,7 @@ export function ExecutionsCard({ trade }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
     action: 'buy' as 'buy' | 'sell',
+    option_type: (trade.option_type ?? 'call') as 'call' | 'put',
     datetime: nowLocal(),
     quantity: '',
     price: '',
@@ -51,6 +52,7 @@ export function ExecutionsCard({ trade }: Props) {
 
   const [editForm, setEditForm] = useState({
     action: 'buy' as 'buy' | 'sell',
+    option_type: (trade.option_type ?? 'call') as 'call' | 'put',
     datetime: nowLocal(),
     quantity: '',
     price: '',
@@ -62,7 +64,7 @@ export function ExecutionsCard({ trade }: Props) {
     (a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
   )
 
-  const summary = calcExecutionsSummary(executions, trade.asset_type as AssetType)
+  const summary = calcExecutionsSummary(executions, trade.asset_type as AssetType, trade.option_type)
 
   const totalBought = executions
     .filter((e) => e.action === 'buy')
@@ -93,6 +95,7 @@ export function ExecutionsCard({ trade }: Props) {
     setError(null)
     const newExecution = {
       action: form.action,
+      option_type: trade.asset_type === 'option' ? form.option_type : undefined,
       datetime: new Date(form.datetime).toISOString(),
       quantity,
       price,
@@ -105,7 +108,15 @@ export function ExecutionsCard({ trade }: Props) {
 
     if (success) {
       setAdding(false)
-      setForm({ action: 'buy', datetime: nowLocal(), quantity: '', price: '', fee: '', dividend: '' })
+      setForm({
+        action: 'buy',
+        option_type: (trade.option_type ?? form.option_type ?? 'call') as 'call' | 'put',
+        datetime: nowLocal(),
+        quantity: '',
+        price: '',
+        fee: '',
+        dividend: '',
+      })
 
       // Recalculate exit_price from updated executions if trade is closed
       if (trade.status === 'closed') {
@@ -154,6 +165,7 @@ export function ExecutionsCard({ trade }: Props) {
     setError(null)
     setEditForm({
       action: exec.action,
+      option_type: (exec.option_type ?? trade.option_type ?? 'call') as 'call' | 'put',
       datetime: local,
       quantity: exec.quantity ? String(exec.quantity) : '',
       price: exec.price ? String(exec.price) : '',
@@ -168,8 +180,9 @@ export function ExecutionsCard({ trade }: Props) {
     setSaving(true)
     setError(null)
 
-    const patch: Partial<Pick<TradeExecution, 'action' | 'datetime' | 'quantity' | 'price' | 'fee' | 'dividend'>> = {
+    const patch: Partial<Pick<TradeExecution, 'action' | 'option_type' | 'datetime' | 'quantity' | 'price' | 'fee' | 'dividend'>> = {
       action: editForm.action,
+      option_type: trade.asset_type === 'option' ? editForm.option_type : undefined,
       datetime: new Date(editForm.datetime).toISOString(),
       quantity: editForm.quantity ? parseFloat(editForm.quantity) : 0,
       price: editForm.price ? parseFloat(editForm.price) : 0,
@@ -332,8 +345,8 @@ export function ExecutionsCard({ trade }: Props) {
         {/* Add execution form */}
         {adding && !editingId && (
           <div className="rounded-md border border-border/60 bg-accent/20 p-3 space-y-3">
-            {/* Buy / Sell toggle */}
-            <div className="flex gap-2">
+            {/* Action / Contract toggle */}
+            <div className="flex items-stretch gap-2">
               {(['buy', 'sell'] as const).map((a) => (
                 <button
                   key={a}
@@ -351,6 +364,29 @@ export function ExecutionsCard({ trade }: Props) {
                   {a}
                 </button>
               ))}
+
+              {trade.asset_type === 'option' && (
+                <>
+                  <div className="w-px bg-border/70" aria-hidden="true" />
+                  {(['call', 'put'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, option_type: t }))}
+                      className={cn(
+                        'flex-1 py-1.5 rounded text-xs font-semibold border transition-colors uppercase',
+                        form.option_type === t
+                          ? t === 'call'
+                            ? 'bg-[#00d4a1]/20 border-[#00d4a1]/50 text-[#00d4a1]'
+                            : 'bg-[#ff4d6d]/20 border-[#ff4d6d]/50 text-[#ff4d6d]'
+                          : 'bg-transparent border-border text-muted-foreground hover:border-foreground/30'
+                      )}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
 
             {error && (
@@ -472,7 +508,7 @@ export function ExecutionsCard({ trade }: Props) {
           <div className="space-y-0.5">
             {/* Desktop column headers */}
             {!editingId && (
-              <div className="hidden md:grid grid-cols-[80px_1fr_80px_80px_60px_80px_72px] gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground px-1">
+              <div className="hidden md:grid grid-cols-[80px_1fr_80px_150px_60px_80px_72px] gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground px-1">
                 <span>Action</span>
                 <span>Date / Time</span>
                 <span className="text-right">Qty</span>
@@ -492,8 +528,8 @@ export function ExecutionsCard({ trade }: Props) {
                     key={exec.id}
                     className="rounded-md bg-accent/30 p-3 space-y-2"
                   >
-                    {/* Action toggle */}
-                    <div className="flex gap-2">
+                    {/* Action / Contract toggle */}
+                    <div className="flex items-stretch gap-2">
                       {(['buy', 'sell'] as const).map((a) => (
                         <button
                           key={a}
@@ -511,6 +547,28 @@ export function ExecutionsCard({ trade }: Props) {
                           {a}
                         </button>
                       ))}
+                      {trade.asset_type === 'option' && (
+                        <>
+                          <div className="w-px bg-border/70" aria-hidden="true" />
+                          {(['call', 'put'] as const).map((t) => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => setEditForm((f) => ({ ...f, option_type: t }))}
+                              className={cn(
+                                'flex-1 py-1 rounded text-[10px] font-semibold border transition-colors uppercase',
+                                editForm.option_type === t
+                                  ? t === 'call'
+                                    ? 'bg-[#00d4a1]/20 border-[#00d4a1]/50 text-[#00d4a1]'
+                                    : 'bg-[#ff4d6d]/20 border-[#ff4d6d]/50 text-[#ff4d6d]'
+                                  : 'bg-transparent border-border text-muted-foreground hover:border-foreground/30'
+                              )}
+                            >
+                              {t}
+                            </button>
+                          ))}
+                        </>
+                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="col-span-2">
@@ -625,6 +683,9 @@ export function ExecutionsCard({ trade }: Props) {
                           {exec.quantity}
                           <span className="text-muted-foreground mx-1">@</span>
                           {fmt.currency(exec.price, 4)}
+                          {trade.asset_type === 'option' && exec.option_type && (
+                            <span className="ml-1 text-xs uppercase text-muted-foreground">{exec.option_type}</span>
+                          )}
                         </span>
                       )}
 
@@ -675,7 +736,7 @@ export function ExecutionsCard({ trade }: Props) {
                       'hidden md:grid gap-2 items-center px-1 py-1 rounded hover:bg-accent/30 transition-colors',
                       isDividendOnly
                         ? 'grid-cols-[80px_1fr_1fr_72px]'
-                        : 'grid-cols-[80px_1fr_80px_80px_60px_80px_72px]'
+                        : 'grid-cols-[80px_1fr_80px_150px_60px_80px_72px]'
                     )}
                   >
                     <span
@@ -711,7 +772,10 @@ export function ExecutionsCard({ trade }: Props) {
                     ) : (
                       <>
                         <span className="text-xs font-mono text-right">{exec.quantity}</span>
-                        <span className="text-xs font-mono text-right">{fmt.currency(exec.price, 4)}</span>
+                        <span className="text-xs font-mono text-right">
+                          {fmt.currency(exec.price, 4)}
+                          {trade.asset_type === 'option' && exec.option_type ? ` ${exec.option_type.toUpperCase()}` : ''}
+                        </span>
                         <span className="text-xs font-mono text-right text-muted-foreground">
                           {exec.fee ? fmt.currency(exec.fee) : '—'}
                         </span>

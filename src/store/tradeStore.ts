@@ -40,10 +40,11 @@ interface TradeState {
 // Apply execution-derived P&L back onto the trade object so the rest of the
 // app (dashboard stats, trade list) sees up-to-date numbers without a refetch.
 function applyExecutions(trade: Trade): Trade {
-  if (!trade.has_executions || !trade.executions?.length) return trade
-  const s = calcExecutionsSummary(trade.executions, trade.asset_type)
+  if (!trade.executions?.length) return trade
+  const s = calcExecutionsSummary(trade.executions, trade.asset_type, trade.option_type)
   return {
     ...trade,
+    has_executions: true,
     net_pnl: s.realizedPnl,
     gross_pnl: s.realizedPnl + s.totalFees,
     status: s.status,
@@ -52,6 +53,20 @@ function applyExecutions(trade: Trade): Trade {
     quantity: s.netQty > 0 ? s.netQty : trade.quantity,
     entry_price: s.avgCostBasis > 0 ? s.avgCostBasis : trade.entry_price,
   }
+}
+
+function deriveExecutionOptionType(
+  input: CreateTradeInput & { user_id: string; account_id: string },
+  action: 'buy' | 'sell'
+): 'call' | 'put' | undefined {
+  if (input.asset_type !== 'option') return undefined
+  const legs = input.option_legs ?? []
+  if (legs.length === 0) return undefined
+
+  const matchingLeg = legs.find((leg) => leg.action === action)
+  if (matchingLeg?.option_type) return matchingLeg.option_type
+
+  return legs[0]?.option_type
 }
 
 function shouldQueueMutation(errorMessage: string): boolean {
@@ -174,12 +189,15 @@ export const useTradeStore = create<TradeState>((set, get) => ({
     // Long opens with buy; short opens with sell
     const openAction = input.direction === 'long' ? 'buy' : 'sell'
     const closeAction = input.direction === 'long' ? 'sell' : 'buy'
+    const openOptionType = deriveExecutionOptionType(input, openAction)
+    const closeOptionType = deriveExecutionOptionType(input, closeAction) ?? openOptionType
 
     const execsToInsert: object[] = [
       {
         trade_id: trade.id,
         user_id: input.user_id,
         action: openAction,
+        option_type: openOptionType,
         datetime: input.entry_date,
         quantity: input.quantity,
         price: input.entry_price,
@@ -193,6 +211,7 @@ export const useTradeStore = create<TradeState>((set, get) => ({
         trade_id: trade.id,
         user_id: input.user_id,
         action: closeAction,
+        option_type: closeOptionType,
         datetime: input.exit_date,
         quantity: input.quantity,
         price: input.exit_price,

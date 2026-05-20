@@ -5,7 +5,7 @@ import { AreaChart,Area,XAxis,YAxis,Tooltip,ResponsiveContainer,BarChart,Bar,Cel
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { useAiStore } from '@/store/aiStore'
-import { aggregateStats, fmt, STRATEGY_TAG_LABELS } from '@/lib/tradeUtils'
+import { aggregateStats, calcExecutionsSummary, fmt, STRATEGY_TAG_LABELS } from '@/lib/tradeUtils'
 import { useCanAccess } from '@/lib/featureGates'
 import { TradeRow } from '@/components/trades/TradeRow'
 import { Tooltip as UITooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
@@ -42,6 +42,11 @@ function toDateKeyLocal(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+function dateFromLocalKey(key: string): Date {
+  const [y, m, d] = key.split('-').map(Number)
+  return new Date(y, (m ?? 1) - 1, d ?? 1)
 }
 
 // ── Dimension Card ─────────────────────────────────────────────────────────────
@@ -211,6 +216,70 @@ export function DashboardPage() {
 
   const stats = useMemo(() => aggregateStats(filteredTrades), [filteredTrades])
 
+  // Realized P&L by local day from executions (includes partial exits on open/partial trades).
+  const realizedByDay = useMemo(() => {
+    const map = new Map<string, { pnl: number; count: number; wins: number }>()
+
+    const addDay = (day: string, pnl: number) => {
+      const existing = map.get(day) ?? { pnl: 0, count: 0, wins: 0 }
+      const nextPnl = existing.pnl + pnl
+      map.set(day, {
+        pnl: nextPnl,
+        count: existing.count + 1,
+        wins: existing.wins + (pnl > 0 ? 1 : 0),
+      })
+    }
+
+    for (const trade of filteredTrades) {
+      const executions = trade.executions ?? []
+
+      if (executions.length > 0) {
+        const sorted = [...executions].sort(
+          (a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime()
+        )
+
+        const dayBreaks: number[] = []
+        let currentDay = ''
+
+        for (let i = 0; i < sorted.length; i += 1) {
+          const day = toDateKeyLocal(new Date(sorted[i].datetime))
+          if (day !== currentDay) {
+            currentDay = day
+            dayBreaks.push(i)
+          }
+        }
+
+        let previousRealized = 0
+        for (let i = 0; i < dayBreaks.length; i += 1) {
+          const startIdx = dayBreaks[i]
+          const endExclusive = i + 1 < dayBreaks.length ? dayBreaks[i + 1] : sorted.length
+          const day = toDateKeyLocal(new Date(sorted[startIdx].datetime))
+          const summary = calcExecutionsSummary(
+            sorted.slice(0, endExclusive),
+            trade.asset_type,
+            trade.option_type
+          )
+
+          const dayRealized = summary.realizedPnl - previousRealized
+          previousRealized = summary.realizedPnl
+
+          if (Math.abs(dayRealized) > 1e-9) {
+            addDay(day, dayRealized)
+          }
+        }
+
+        continue
+      }
+
+      // Fallback for legacy trades without executions.
+      if (trade.status === 'closed' && trade.exit_date) {
+        addDay(toDateKeyLocal(new Date(trade.exit_date)), trade.net_pnl ?? 0)
+      }
+    }
+
+    return map
+  }, [filteredTrades])
+
   // Display labels for dimensions
   const TIMEFRAME_LABELS: Record<string, string> = {
     '1m': '1 Min', '5m': '5 Min', '15m': '15 Min',
@@ -263,29 +332,14 @@ export function DashboardPage() {
 
   // Daily P&L bars (last 30 days)
   const dailyPnl = useMemo(() => {
-    const map = new Map<string, number>()
-    filteredTrades
-      .filter((t) => t.status === 'closed' && t.exit_date)
-      .forEach((t) => {
-        const day = t.exit_date!.slice(0, 10)
-        map.set(day, (map.get(day) ?? 0) + (t.net_pnl ?? 0))
-      })
-    return Array.from(map.entries())
+    return Array.from(realizedByDay.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(-30)
-      .map(([date, pnl]) => ({ date: date.slice(5), fullDate: date, pnl }))
-  }, [filteredTrades])
+      .map(([date, row]) => ({ date: date.slice(5), fullDate: date, pnl: row.pnl }))
+  }, [realizedByDay])
 
   // 52-week P&L activity heatmap
   const heatmapData = useMemo(() => {
-    const map = new Map<string, number>()
-    filteredTrades
-      .filter((t) => t.status === 'closed' && t.exit_date)
-      .forEach((t) => {
-        const day = t.exit_date!.slice(0, 10)
-        map.set(day, (map.get(day) ?? 0) + (t.net_pnl ?? 0))
-      })
-
     const today = new Date()
     const start = new Date(today)
     start.setDate(start.getDate() - 364)
@@ -295,10 +349,10 @@ export function DashboardPage() {
     const cur = new Date(start)
 
     while (cur <= today || allDays.length % 7 !== 0) {
-      const d = cur.toISOString().slice(0, 10)
+      const d = toDateKeyLocal(cur)
       allDays.push({
         date: d,
-        pnl: cur > today ? null : (map.get(d) ?? null),
+        pnl: cur > today ? null : (realizedByDay.get(d)?.pnl ?? null),
       })
       cur.setDate(cur.getDate() + 1)
     }
@@ -312,7 +366,7 @@ export function DashboardPage() {
     const maxPnl = vals.length > 0 ? Math.max(...vals) : 1
 
     return { weeks, maxPnl }
-  }, [filteredTrades])
+  }, [realizedByDay])
 
   // Strategy breakdown — sorted by |pnl|, top 8
   const strategyChartData = useMemo(
@@ -374,17 +428,15 @@ export function DashboardPage() {
   // Monthly P&L data (last 12 months)
   const monthlyData = useMemo(() => {
     const map = new Map<string, { pnl: number; count: number; wins: number }>()
-    filteredTrades
-      .filter((t) => t.status === 'closed' && t.exit_date)
-      .forEach((t) => {
-        const d = new Date(t.exit_date!)
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-        const row = map.get(key) ?? { pnl: 0, count: 0, wins: 0 }
-        row.pnl += t.net_pnl ?? 0
-        row.count += 1
-        if ((t.net_pnl ?? 0) > 0) row.wins += 1
-        map.set(key, row)
-      })
+    realizedByDay.forEach(({ pnl, count, wins }, dayKey) => {
+      const d = dateFromLocalKey(dayKey)
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const row = map.get(key) ?? { pnl: 0, count: 0, wins: 0 }
+      row.pnl += pnl
+      row.count += count
+      row.wins += wins
+      map.set(key, row)
+    })
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(-12)
@@ -404,26 +456,24 @@ export function DashboardPage() {
           winRate: count > 0 ? Math.round((wins / count) * 100) : 0,
         }
       })
-  }, [filteredTrades])
+  }, [realizedByDay])
 
   // Weekly P&L data (last 16 weeks)
   const weeklyData = useMemo(() => {
     const map = new Map<string, { pnl: number; count: number; wins: number }>()
-    filteredTrades
-      .filter((t) => t.status === 'closed' && t.exit_date)
-      .forEach((t) => {
-        const d = new Date(t.exit_date!)
-        // ISO week: Monday-based
-        const day = d.getDay() === 0 ? 6 : d.getDay() - 1 // 0=Mon … 6=Sun
-        const monday = new Date(d)
-        monday.setDate(d.getDate() - day)
-        const key = monday.toISOString().slice(0, 10)
-        const row = map.get(key) ?? { pnl: 0, count: 0, wins: 0 }
-        row.pnl += t.net_pnl ?? 0
-        row.count += 1
-        if ((t.net_pnl ?? 0) > 0) row.wins += 1
-        map.set(key, row)
-      })
+    realizedByDay.forEach(({ pnl, count, wins }, dayKey) => {
+      const d = dateFromLocalKey(dayKey)
+      // ISO week: Monday-based
+      const day = d.getDay() === 0 ? 6 : d.getDay() - 1 // 0=Mon … 6=Sun
+      const monday = new Date(d)
+      monday.setDate(d.getDate() - day)
+      const key = toDateKeyLocal(monday)
+      const row = map.get(key) ?? { pnl: 0, count: 0, wins: 0 }
+      row.pnl += pnl
+      row.count += count
+      row.wins += wins
+      map.set(key, row)
+    })
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(-16)
@@ -442,23 +492,21 @@ export function DashboardPage() {
           winRate: count > 0 ? Math.round((wins / count) * 100) : 0,
         }
       })
-  }, [filteredTrades])
+  }, [realizedByDay])
 
   // Quarterly P&L data (last 8 quarters)
   const quarterlyData = useMemo(() => {
     const map = new Map<string, { pnl: number; count: number; wins: number }>()
-    filteredTrades
-      .filter((t) => t.status === 'closed' && t.exit_date)
-      .forEach((t) => {
-        const d = new Date(t.exit_date!)
-        const q = Math.floor(d.getMonth() / 3) + 1
-        const key = `${d.getFullYear()}-Q${q}`
-        const row = map.get(key) ?? { pnl: 0, count: 0, wins: 0 }
-        row.pnl += t.net_pnl ?? 0
-        row.count += 1
-        if ((t.net_pnl ?? 0) > 0) row.wins += 1
-        map.set(key, row)
-      })
+    realizedByDay.forEach(({ pnl, count, wins }, dayKey) => {
+      const d = dateFromLocalKey(dayKey)
+      const q = Math.floor(d.getMonth() / 3) + 1
+      const key = `${d.getFullYear()}-Q${q}`
+      const row = map.get(key) ?? { pnl: 0, count: 0, wins: 0 }
+      row.pnl += pnl
+      row.count += count
+      row.wins += wins
+      map.set(key, row)
+    })
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(-8)
@@ -468,7 +516,7 @@ export function DashboardPage() {
         count,
         winRate: count > 0 ? Math.round((wins / count) * 100) : 0,
       }))
-  }, [filteredTrades])
+  }, [realizedByDay])
 
   const handleExportMonthlyReport = () => {
     const periodLabel = monthlyData.length > 0
@@ -516,27 +564,33 @@ export function DashboardPage() {
     const currentMonth = today.getFullYear() * 100 + (today.getMonth() + 1)
     const prevMonth = today.getMonth() === 0 ? (today.getFullYear() - 1) * 100 + 12 : today.getFullYear() * 100 + today.getMonth()
 
-    const extractMonth = (dateStr: string) => {
-      const d = new Date(dateStr)
-      return d.getFullYear() * 100 + (d.getMonth() + 1)
-    }
+    const monthMap = new Map<number, { pnl: number; count: number; wins: number }>()
+    realizedByDay.forEach(({ pnl, count, wins }, dayKey) => {
+      const d = dateFromLocalKey(dayKey)
+      const monthKey = d.getFullYear() * 100 + (d.getMonth() + 1)
+      const row = monthMap.get(monthKey) ?? { pnl: 0, count: 0, wins: 0 }
+      row.pnl += pnl
+      row.count += count
+      row.wins += wins
+      monthMap.set(monthKey, row)
+    })
 
-    const current = filteredTrades.filter(t => t.status === 'closed' && t.exit_date && extractMonth(t.exit_date!) === currentMonth)
-    const previous = filteredTrades.filter(t => t.status === 'closed' && t.exit_date && extractMonth(t.exit_date!) === prevMonth)
+    const current = monthMap.get(currentMonth) ?? { pnl: 0, count: 0, wins: 0 }
+    const previous = monthMap.get(prevMonth) ?? { pnl: 0, count: 0, wins: 0 }
 
     return {
       current: {
-        pnl: current.reduce((s, t) => s + (t.net_pnl ?? 0), 0),
-        count: current.length,
-        wins: current.filter(t => (t.net_pnl ?? 0) > 0).length,
+        pnl: current.pnl,
+        count: current.count,
+        wins: current.wins,
       },
       previous: {
-        pnl: previous.reduce((s, t) => s + (t.net_pnl ?? 0), 0),
-        count: previous.length,
-        wins: previous.filter(t => (t.net_pnl ?? 0) > 0).length,
+        pnl: previous.pnl,
+        count: previous.count,
+        wins: previous.wins,
       },
     }
-  }, [filteredTrades])
+  }, [realizedByDay])
 
   // Drawdown Analysis - track periods and severity
   const drawdownAnalysis = useMemo(() => {

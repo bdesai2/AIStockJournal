@@ -51,9 +51,6 @@ const tradeSchema = z.object({
   risk_percent: z.coerce.number().nonnegative().optional().transform((v) => v === 0 ? undefined : v),
 
   // Options
-  option_type: z.string().nullable().optional()
-    .transform((v) => v === '' || !v ? undefined : v)
-    .pipe(z.enum(['call', 'put']).optional()),
   option_legs: z.array(optionLegSchema).optional(),
   option_strategy: nullableString,
 
@@ -453,8 +450,6 @@ export function NewTradePage() {
       strategy_tags: (data.strategy_tags ?? []) as StrategyTag[],
       // Include primary strategy name from playbook selection
       primary_strategy_name: data.primary_strategy_name || undefined,
-      // Only include option_type for option trades
-      option_type: data.asset_type === 'option' ? data.option_type : undefined,
     }
 
     if (isEdit && id) {
@@ -661,8 +656,8 @@ export function NewTradePage() {
         {/* ── Option Legs ── */}
         {assetType === 'option' && (
           <Section title="Option Legs">
-            <div className="mb-3 flex gap-4 items-end">
-              <div className="flex-1">
+            <div className="mb-3">
+              <div>
                 <Field label="Strategy Name">
                   <input
                     {...register('option_strategy')}
@@ -670,32 +665,6 @@ export function NewTradePage() {
                     className={inputClass}
                   />
                 </Field>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setValue('option_type', 'call')}
-                  className={cn(
-                    'px-4 py-2 rounded-md text-sm font-medium transition-colors border',
-                    watch('option_type') === 'call'
-                      ? 'bg-profit-muted text-[#00d4a1] border-[#00d4a1]/50'
-                      : 'bg-input border-border text-muted-foreground hover:border-border/80'
-                  )}
-                >
-                  CALL
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setValue('option_type', 'put')}
-                  className={cn(
-                    'px-4 py-2 rounded-md text-sm font-medium transition-colors border',
-                    watch('option_type') === 'put'
-                      ? 'bg-loss-muted text-[#ff4d6d] border-[#ff4d6d]/50'
-                      : 'bg-input border-border text-muted-foreground hover:border-border/80'
-                  )}
-                >
-                  PUT
-                </button>
               </div>
             </div>
 

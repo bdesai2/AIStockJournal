@@ -162,19 +162,23 @@ export function TradeRow({ trade, onClick, selectable = false, selected = false,
         </div>
       </div>
 
-      {/* Edit Execution Notes Button */}
-      {trade.status === 'closed' && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onEditExecutionNotes?.()
-          }}
-          className="p-1.5 rounded hover:bg-muted transition-colors hidden sm:flex"
-          title="Add execution notes"
-        >
-          <FileText className="w-4 h-4 text-muted-foreground hover:text-foreground transition-colors" />
-        </button>
-      )}
+      {/* Execution notes column (fixed width to keep row alignment) */}
+      <div className="hidden sm:flex w-7 items-center justify-end">
+        {trade.status === 'closed' ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onEditExecutionNotes?.()
+            }}
+            className="p-1.5 rounded hover:bg-muted transition-colors"
+            title="Add execution notes"
+          >
+            <FileText className="w-4 h-4 text-muted-foreground hover:text-foreground transition-colors" />
+          </button>
+        ) : (
+          <span className="w-7" aria-hidden="true" />
+        )}
+      </div>
     </div>
   )
 }
