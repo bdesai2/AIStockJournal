@@ -364,45 +364,49 @@ export function ExecutionsCard({ trade }: Props) {
         {adding && !editingId && (
           <div className="rounded-md border border-border/60 bg-accent/20 p-3 space-y-3">
             {/* Action / Contract toggle */}
-            <div className="flex items-stretch gap-2">
-              {(['buy', 'sell'] as const).map((a) => (
-                <button
-                  key={a}
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, action: a }))}
-                  className={cn(
-                    'flex-1 py-1.5 rounded text-xs font-semibold border transition-colors uppercase',
-                    form.action === a
-                      ? a === 'buy'
-                        ? 'bg-[#00d4a1]/20 border-[#00d4a1]/50 text-[#00d4a1]'
-                        : 'bg-[#ff4d6d]/20 border-[#ff4d6d]/50 text-[#ff4d6d]'
-                      : 'bg-transparent border-border text-muted-foreground hover:border-foreground/30'
-                  )}
-                >
-                  {a}
-                </button>
-              ))}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+              <div className="grid flex-1 grid-cols-2 gap-2">
+                {(['buy', 'sell'] as const).map((a) => (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, action: a }))}
+                    className={cn(
+                      'py-1.5 rounded text-xs font-semibold border transition-colors uppercase min-w-0',
+                      form.action === a
+                        ? a === 'buy'
+                          ? 'bg-[#00d4a1]/20 border-[#00d4a1]/50 text-[#00d4a1]'
+                          : 'bg-[#ff4d6d]/20 border-[#ff4d6d]/50 text-[#ff4d6d]'
+                        : 'bg-transparent border-border text-muted-foreground hover:border-foreground/30'
+                    )}
+                  >
+                    {a}
+                  </button>
+                ))}
+              </div>
 
               {trade.asset_type === 'option' && (
                 <>
-                  <div className="w-px bg-border/70" aria-hidden="true" />
-                  {(['call', 'put'] as const).map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, option_type: t }))}
-                      className={cn(
-                        'flex-1 py-1.5 rounded text-xs font-semibold border transition-colors uppercase',
-                        form.option_type === t
-                          ? t === 'call'
-                            ? 'bg-[#00d4a1]/20 border-[#00d4a1]/50 text-[#00d4a1]'
-                            : 'bg-[#ff4d6d]/20 border-[#ff4d6d]/50 text-[#ff4d6d]'
-                          : 'bg-transparent border-border text-muted-foreground hover:border-foreground/30'
-                      )}
-                    >
-                      {t}
-                    </button>
-                  ))}
+                  <div className="hidden w-px bg-border/70 sm:block" aria-hidden="true" />
+                  <div className="grid flex-1 grid-cols-2 gap-2">
+                    {(['call', 'put'] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, option_type: t }))}
+                        className={cn(
+                          'py-1.5 rounded text-xs font-semibold border transition-colors uppercase min-w-0',
+                          form.option_type === t
+                            ? t === 'call'
+                              ? 'bg-[#00d4a1]/20 border-[#00d4a1]/50 text-[#00d4a1]'
+                              : 'bg-[#ff4d6d]/20 border-[#ff4d6d]/50 text-[#ff4d6d]'
+                            : 'bg-transparent border-border text-muted-foreground hover:border-foreground/30'
+                        )}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
                 </>
               )}
             </div>
@@ -547,44 +551,48 @@ export function ExecutionsCard({ trade }: Props) {
                     className="rounded-md bg-accent/30 p-3 space-y-2"
                   >
                     {/* Action / Contract toggle */}
-                    <div className="flex items-stretch gap-2">
-                      {(['buy', 'sell'] as const).map((a) => (
-                        <button
-                          key={a}
-                          type="button"
-                          onClick={() => setEditForm((f) => ({ ...f, action: a }))}
-                          className={cn(
-                            'flex-1 py-1 rounded text-[10px] font-semibold border transition-colors uppercase',
-                            editForm.action === a
-                              ? a === 'buy'
-                                ? 'bg-[#00d4a1]/20 border-[#00d4a1]/50 text-[#00d4a1]'
-                                : 'bg-[#ff4d6d]/20 border-[#ff4d6d]/50 text-[#ff4d6d]'
-                              : 'bg-transparent border-border text-muted-foreground hover:border-foreground/30'
-                          )}
-                        >
-                          {a}
-                        </button>
-                      ))}
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                      <div className="grid flex-1 grid-cols-2 gap-2">
+                        {(['buy', 'sell'] as const).map((a) => (
+                          <button
+                            key={a}
+                            type="button"
+                            onClick={() => setEditForm((f) => ({ ...f, action: a }))}
+                            className={cn(
+                              'py-1 rounded text-[10px] font-semibold border transition-colors uppercase min-w-0',
+                              editForm.action === a
+                                ? a === 'buy'
+                                  ? 'bg-[#00d4a1]/20 border-[#00d4a1]/50 text-[#00d4a1]'
+                                  : 'bg-[#ff4d6d]/20 border-[#ff4d6d]/50 text-[#ff4d6d]'
+                                : 'bg-transparent border-border text-muted-foreground hover:border-foreground/30'
+                            )}
+                          >
+                            {a}
+                          </button>
+                        ))}
+                      </div>
                       {trade.asset_type === 'option' && (
                         <>
-                          <div className="w-px bg-border/70" aria-hidden="true" />
-                          {(['call', 'put'] as const).map((t) => (
-                            <button
-                              key={t}
-                              type="button"
-                              onClick={() => setEditForm((f) => ({ ...f, option_type: t }))}
-                              className={cn(
-                                'flex-1 py-1 rounded text-[10px] font-semibold border transition-colors uppercase',
-                                editForm.option_type === t
-                                  ? t === 'call'
-                                    ? 'bg-[#00d4a1]/20 border-[#00d4a1]/50 text-[#00d4a1]'
-                                    : 'bg-[#ff4d6d]/20 border-[#ff4d6d]/50 text-[#ff4d6d]'
-                                  : 'bg-transparent border-border text-muted-foreground hover:border-foreground/30'
-                              )}
-                            >
-                              {t}
-                            </button>
-                          ))}
+                          <div className="hidden w-px bg-border/70 sm:block" aria-hidden="true" />
+                          <div className="grid flex-1 grid-cols-2 gap-2">
+                            {(['call', 'put'] as const).map((t) => (
+                              <button
+                                key={t}
+                                type="button"
+                                onClick={() => setEditForm((f) => ({ ...f, option_type: t }))}
+                                className={cn(
+                                  'py-1 rounded text-[10px] font-semibold border transition-colors uppercase min-w-0',
+                                  editForm.option_type === t
+                                    ? t === 'call'
+                                      ? 'bg-[#00d4a1]/20 border-[#00d4a1]/50 text-[#00d4a1]'
+                                      : 'bg-[#ff4d6d]/20 border-[#ff4d6d]/50 text-[#ff4d6d]'
+                                    : 'bg-transparent border-border text-muted-foreground hover:border-foreground/30'
+                                )}
+                              >
+                                {t}
+                              </button>
+                            ))}
+                          </div>
                         </>
                       )}
                     </div>
