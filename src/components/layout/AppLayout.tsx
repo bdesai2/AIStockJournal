@@ -19,12 +19,6 @@ import {
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { useInstallPrompt } from '@/hooks/useInstallPrompt'
 import { useRealtimeIndicator } from '@/hooks/useRealtimeStatus'
-import {
-  useTradeRealtimeSubscriptions,
-  useExecutionRealtimeSubscriptions,
-  useScreenshotRealtimeSubscriptions,
-  useJournalRealtimeSubscriptions,
-} from '@/hooks/useTradeRealtimeSubscriptions'
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { useJournalStore } from '@/store/journalStore'
@@ -168,12 +162,6 @@ export function AppLayout() {
       fetchSubscription(user.id)
     }
   }, [user?.id, selectedAccountId, trades.length, fetchTrades, fetchSubscription])
-
-  // Set up real-time subscriptions for trades, executions, screenshots, and journals
-  useTradeRealtimeSubscriptions()
-  useExecutionRealtimeSubscriptions()
-  useScreenshotRealtimeSubscriptions()
-  useJournalRealtimeSubscriptions()
 
   const stats = useMemo(() => aggregateStats(trades), [trades])
   const breadcrumbs = useMemo(() => getBreadcrumbs(location.pathname), [location.pathname])

@@ -374,12 +374,6 @@ export function NewTradePage() {
   }
 
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
-  const authReady = initialized && !authLoading && !!user?.id
-  const saveBlockedReason = !initialized || authLoading
-    ? 'Authentication is still loading. Please wait a moment and try again.'
-    : !selectedAccountId
-      ? 'Select an account before saving a trade.'
-      : null
 
   const handleFileAdd = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
@@ -396,29 +390,10 @@ export function NewTradePage() {
   const onSubmit = async (data: TradeFormData) => {
     console.log('✅ onSubmit fired', { tradeId: id, isEdit, timestamp: new Date().toISOString() })
 
-    if (saveBlockedReason) {
-      pushNotification({
-        kind: 'error',
-        variant: 'warning',
-        title: 'Trade not saved',
-        message: saveBlockedReason,
-      })
-      return
-    }
+    const currentUserId = user?.id ?? ''
+    const currentAccountId = selectedAccountId ?? ''
 
-    // Use user already in memory — avoid calling supabase.auth.getSession() which can hang
-    const currentUserId = user?.id
-    if (!currentUserId || !selectedAccountId) {
-      pushNotification({
-        kind: 'error',
-        variant: 'error',
-        title: 'Trade not saved',
-        message: 'Your session is no longer active. Please sign in again and resubmit the trade.',
-      })
-      return
-    }
-
-    console.log('✅ User verified, building payload', { currentUserId, selectedAccountId })
+    console.log('✅ Building payload', { currentUserId, selectedAccountId: currentAccountId })
 
     // Auto-fill exit_price from executions if status is closed and field is empty
     let exitPrice = data.exit_price
@@ -452,14 +427,47 @@ export function NewTradePage() {
       primary_strategy_name: data.primary_strategy_name || undefined,
     }
 
-    const timeout = (ms: number) =>
+    const timeout = (ms: number, label: string) =>
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Request timed out. Check your connection and try again.')), ms)
+        setTimeout(() => reject(new Error(`${label} timed out. Check your connection and try again.`)), ms)
       )
+
+    const runWithRetryOnTimeout = async <T,>(
+      label: string,
+      operation: () => Promise<T>,
+      timeoutMs: number,
+      maxAttempts = 2,
+    ): Promise<T> => {
+      let lastError: unknown = null
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          return await Promise.race([operation(), timeout(timeoutMs, label)])
+        } catch (err) {
+          lastError = err
+          const message = err instanceof Error ? err.message.toLowerCase() : ''
+          const isTimeout = message.includes('timed out')
+
+          if (!isTimeout || attempt === maxAttempts) {
+            throw err
+          }
+
+          console.warn(`⚠️ ${label} attempt ${attempt} timed out; retrying...`)
+        }
+      }
+
+      throw lastError instanceof Error ? lastError : new Error(`${label} failed`)
+    }
+
+    const REQUEST_TIMEOUT_MS = 45_000
 
     if (isEdit && id) {
       try {
-        const updated = await Promise.race([updateTrade(id, basePayload), timeout(20_000)])
+        const updated = await runWithRetryOnTimeout(
+          'Trade update request',
+          () => updateTrade(id, basePayload),
+          REQUEST_TIMEOUT_MS,
+        )
         if (updated) {
           for (const file of pendingFiles) {
             await uploadScreenshot(currentUserId, id, file)
@@ -485,11 +493,17 @@ export function NewTradePage() {
       const createPayload = {
         ...(basePayload as CreateTradeInput),
         user_id: currentUserId,
-        account_id: selectedAccountId,
+        account_id: currentAccountId,
       } as CreateTradeInput & { user_id: string; account_id: string }
       try {
-        const created = await Promise.race([createTrade(createPayload), timeout(20_000)])
+        console.log('🚀 Creating trade...', { ticker: createPayload.ticker, status: createPayload.status })
+        const created = await runWithRetryOnTimeout(
+          'Trade creation request',
+          () => createTrade(createPayload),
+          REQUEST_TIMEOUT_MS,
+        )
         if (created) {
+          console.log('✅ Trade created', { id: created.id })
           for (const file of pendingFiles) {
             await uploadScreenshot(currentUserId, created.id, file)
           }
@@ -533,12 +547,6 @@ export function NewTradePage() {
           </p>
         </div>
       </div>
-
-      {saveBlockedReason && (
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
-          {saveBlockedReason}
-        </div>
-      )}
 
       {tradeError && (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -985,7 +993,7 @@ export function NewTradePage() {
           <div className="sticky bottom-16 md:static z-20 flex items-center gap-3 pt-2 pb-1 md:pb-0 -mx-4 px-4 md:mx-0 md:px-0 bg-background/95 md:bg-transparent border-t border-border/60 md:border-0 backdrop-blur-sm md:backdrop-blur-none">
           <button
             type="submit"
-            disabled={isSubmitting || !authReady || !selectedAccountId}
+            disabled={isSubmitting}
             className="flex items-center gap-2 bg-primary text-primary-foreground rounded-md px-6 py-2.5 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
