@@ -166,8 +166,6 @@ export function NewTradePage() {
     user,
     selectedAccountId,
     selectedAccount,
-    loading: authLoading,
-    initialized,
   } = useAuthStore()
   const { createTrade, updateTrade, trades, uploadScreenshot, deleteScreenshot, error: tradeError } = useTradeStore()
   const { runSetupCheck, setupLoading, setupResult, setupError, setupGeneratedAt, clearSetupResult } = useAiStore()
