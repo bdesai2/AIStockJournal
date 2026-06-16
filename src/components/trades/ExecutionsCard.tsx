@@ -30,6 +30,11 @@ export function ExecutionsCard({ trade }: Props) {
   const { user } = useAuthStore()
   const { addExecution, updateExecution, deleteExecution, updateTrade } = useTradeStore()
 
+  const timeout = (ms: number) =>
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Request timed out. Check your connection and try again.')), ms)
+    )
+
   const [adding, setAdding] = useState(false)
   const [addingDividend, setAddingDividend] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -103,36 +108,40 @@ export function ExecutionsCard({ trade }: Props) {
       dividend: form.dividend ? parseFloat(form.dividend) : 0,
     } as TradeExecution
 
-    const success = await addExecution(user.id, trade.id, newExecution)
-    setSaving(false)
+    try {
+      const success = await Promise.race([addExecution(user.id, trade.id, newExecution), timeout(20_000)])
 
-    if (success) {
-      setAdding(false)
-      setForm({
-        action: 'buy',
-        option_type: (trade.option_type ?? form.option_type ?? 'call') as 'call' | 'put',
-        datetime: nowLocal(),
-        quantity: '',
-        price: '',
-        fee: '',
-        dividend: '',
-      })
+      if (success) {
+        setAdding(false)
+        setForm({
+          action: 'buy',
+          option_type: (trade.option_type ?? form.option_type ?? 'call') as 'call' | 'put',
+          datetime: nowLocal(),
+          quantity: '',
+          price: '',
+          fee: '',
+          dividend: '',
+        })
 
-      // Recalculate exit_price from updated executions if trade is closed
-      if (trade.status === 'closed') {
-        const updatedExecutions = [...(trade.executions || []), newExecution]
-        const newExitPrice = calcExitPriceFromExecutions({ ...trade, executions: updatedExecutions })
-        const newExitDate = getCurrentExitDate(updatedExecutions, trade.direction)
+        if (trade.status === 'closed') {
+          const updatedExecutions = [...(trade.executions || []), newExecution]
+          const newExitPrice = calcExitPriceFromExecutions({ ...trade, executions: updatedExecutions })
+          const newExitDate = getCurrentExitDate(updatedExecutions, trade.direction)
 
-        if (newExitPrice) {
-          await updateTrade(trade.id, {
-            exit_price: Math.round(newExitPrice * 10000) / 10000,
-            exit_date: newExitDate || undefined,
-          })
+          if (newExitPrice) {
+            await updateTrade(trade.id, {
+              exit_price: Math.round(newExitPrice * 10000) / 10000,
+              exit_date: newExitDate || undefined,
+            })
+          }
         }
+      } else {
+        setError('Failed to save execution. Please try again.')
       }
-    } else {
-      setError('Failed to save execution. Check console for details.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save execution. Please try again.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -140,20 +149,25 @@ export function ExecutionsCard({ trade }: Props) {
     if (!user?.id || !dividendForm.dividend) return
     setSaving(true)
     setError(null)
-    const success = await addExecution(user.id, trade.id, {
-      action: 'buy',
-      datetime: new Date(dividendForm.datetime).toISOString(),
-      quantity: 0,
-      price: 0,
-      fee: 0,
-      dividend: parseFloat(dividendForm.dividend),
-    })
-    setSaving(false)
-    if (success) {
-      setAddingDividend(false)
-      setDividendForm({ datetime: nowLocal(), dividend: '' })
-    } else {
-      setError('Failed to save dividend. Check console for details.')
+    try {
+      const success = await Promise.race([addExecution(user.id, trade.id, {
+        action: 'buy',
+        datetime: new Date(dividendForm.datetime).toISOString(),
+        quantity: 0,
+        price: 0,
+        fee: 0,
+        dividend: parseFloat(dividendForm.dividend),
+      }), timeout(20_000)])
+      if (success) {
+        setAddingDividend(false)
+        setDividendForm({ datetime: nowLocal(), dividend: '' })
+      } else {
+        setError('Failed to save dividend. Please try again.')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save dividend. Please try again.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -190,29 +204,33 @@ export function ExecutionsCard({ trade }: Props) {
       dividend: editForm.dividend ? parseFloat(editForm.dividend) : 0,
     }
 
-    const success = await updateExecution(editingId, trade.id, patch)
-    setSaving(false)
+    try {
+      const success = await Promise.race([updateExecution(editingId, trade.id, patch), timeout(20_000)])
 
-    if (success) {
-      setEditingId(null)
+      if (success) {
+        setEditingId(null)
 
-      // Recalculate exit_price from updated executions if trade is closed
-      if (trade.status === 'closed' && trade.executions) {
-        const updatedExecutions = trade.executions.map(e =>
-          e.id === editingId ? { ...e, ...patch } : e
-        )
-        const newExitPrice = calcExitPriceFromExecutions({ ...trade, executions: updatedExecutions })
-        const newExitDate = getCurrentExitDate(updatedExecutions, trade.direction)
+        if (trade.status === 'closed' && trade.executions) {
+          const updatedExecutions = trade.executions.map(e =>
+            e.id === editingId ? { ...e, ...patch } : e
+          )
+          const newExitPrice = calcExitPriceFromExecutions({ ...trade, executions: updatedExecutions })
+          const newExitDate = getCurrentExitDate(updatedExecutions, trade.direction)
 
-        if (newExitPrice) {
-          await updateTrade(trade.id, {
-            exit_price: Math.round(newExitPrice * 10000) / 10000,
-            exit_date: newExitDate || undefined,
-          })
+          if (newExitPrice) {
+            await updateTrade(trade.id, {
+              exit_price: Math.round(newExitPrice * 10000) / 10000,
+              exit_date: newExitDate || undefined,
+            })
+          }
         }
+      } else {
+        setError('Failed to update execution. Please try again.')
       }
-    } else {
-      setError('Failed to update execution. Check console for details.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update execution. Please try again.')
+    } finally {
+      setSaving(false)
     }
   }
 

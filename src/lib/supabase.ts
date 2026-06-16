@@ -74,21 +74,30 @@ export const storage = {
     const ext = file.name.split('.').pop()
     const path = `${userId}/${tradeId}/${Date.now()}.${ext}`
 
-    const { error } = await supabase.storage
-      .from('trade-screenshots')
-      .upload(path, file, { upsert: false })
+    try {
+      const { error } = await supabase.storage
+        .from('trade-screenshots')
+        .upload(path, file, { upsert: false })
 
-    if (error) {
-      console.error('Upload error:', error)
+      if (error) {
+        console.error('[storage.uploadScreenshot] Upload error:', error)
+        return null
+      }
+
+      const { data: signData, error: signError } = await supabase.storage
+        .from('trade-screenshots')
+        .createSignedUrl(path, 60 * 60 * 24)
+
+      if (signError || !signData) {
+        console.error('[storage.uploadScreenshot] Signed URL error:', signError)
+        return null
+      }
+
+      return { url: signData.signedUrl, path }
+    } catch (err) {
+      console.error('[storage.uploadScreenshot] Exception:', err)
       return null
     }
-
-    // Store a short-lived signed URL; fetchTrades regenerates them on every load
-    const { data: signData, error: signError } = await supabase.storage
-      .from('trade-screenshots')
-      .createSignedUrl(path, 60 * 60 * 24) // 24 h — refreshed on next fetchTrades
-    if (signError || !signData) return null
-    return { url: signData.signedUrl, path }
   },
 
   async deleteScreenshot(path: string): Promise<boolean> {

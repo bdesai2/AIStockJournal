@@ -143,177 +143,211 @@ export const useTradeStore = create<TradeState>((set, get) => ({
   createTrade: async (input) => {
     set({ loading: true, error: null })
 
-    // Create the trade with has_executions=true from the start
-    const { data, error } = await db
-      .trades()
-      .insert({ ...input, has_executions: true })
-      .select(TRADE_SELECT)
-      .single()
+    try {
+      // Create the trade with has_executions=true from the start
+      const { data, error } = await db
+        .trades()
+        .insert({ ...input, has_executions: true })
+        .select(TRADE_SELECT)
+        .single()
 
-    if (error) {
-      const errorMsg = error.message || 'Failed to create trade'
+      if (error) {
+        const errorMsg = error.message || 'Failed to create trade'
 
-      if (shouldQueueMutation(errorMsg)) {
-        enqueueOfflineMutation('trade', 'create', input)
-        set({ loading: false, error: 'Offline: trade queued and will sync when online.' })
+        if (shouldQueueMutation(errorMsg)) {
+          enqueueOfflineMutation('trade', 'create', input)
+          set({ loading: false, error: 'Offline: trade queued and will sync when online.' })
+          const { push } = useNotificationStore.getState()
+          push({
+            kind: 'error',
+            variant: 'warning',
+            title: 'Trade queued offline',
+            message: 'We will create this trade automatically once connection is restored.',
+          })
+          return null
+        }
+
+        set({ error: errorMsg, loading: false })
+
+        // Notify user and suggest re-login if auth error
         const { push } = useNotificationStore.getState()
+        const isAuthError = errorMsg.includes('auth') || errorMsg.includes('token') || errorMsg.includes('401')
         push({
           kind: 'error',
-          variant: 'warning',
-          title: 'Trade queued offline',
-          message: 'We will create this trade automatically once connection is restored.',
+          variant: 'error',
+          title: isAuthError ? 'Session expired' : 'Error creating trade',
+          message: isAuthError
+            ? 'Your session has expired. Please log in again and resubmit your trade.'
+            : errorMsg,
         })
+
         return null
       }
 
+      const trade = data as Trade
+
+      // Build initial executions from the form entry/exit fields
+      // Long opens with buy; short opens with sell
+      const openAction = input.direction === 'long' ? 'buy' : 'sell'
+      const closeAction = input.direction === 'long' ? 'sell' : 'buy'
+      const openOptionType = deriveExecutionOptionType(input, openAction)
+      const closeOptionType = deriveExecutionOptionType(input, closeAction) ?? openOptionType
+
+      const execsToInsert: object[] = [
+        {
+          trade_id: trade.id,
+          user_id: input.user_id,
+          action: openAction,
+          option_type: openOptionType,
+          datetime: input.entry_date,
+          quantity: input.quantity,
+          price: input.entry_price,
+          fee: input.fees ?? 0,
+        },
+      ]
+
+      // If the trade is already closed/partial at creation time, add closing execution
+      if (input.exit_price && input.exit_date && input.status !== 'open') {
+        execsToInsert.push({
+          trade_id: trade.id,
+          user_id: input.user_id,
+          action: closeAction,
+          option_type: closeOptionType,
+          datetime: input.exit_date,
+          quantity: input.quantity,
+          price: input.exit_price,
+          fee: 0,
+        })
+      }
+
+      const { data: execData } = await db
+        .executions()
+        .insert(execsToInsert)
+        .select()
+
+      const newTrade = applyExecutions({
+        ...trade,
+        has_executions: true,
+        executions: (execData ?? []) as import('@/types').TradeExecution[],
+      })
+
+      set((state) => ({
+        trades: [newTrade, ...state.trades],
+        loading: false,
+      }))
+
+      const { push } = useNotificationStore.getState()
+      push({
+        kind: 'trade_created',
+        variant: 'success',
+        title: 'Trade created',
+        message: `${newTrade.ticker} ${newTrade.direction?.toUpperCase?.() ?? ''} · qty ${newTrade.quantity}`,
+        tradeId: newTrade.id,
+      })
+
+      return newTrade
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error creating trade'
       set({ error: errorMsg, loading: false })
 
-      // Notify user and suggest re-login if auth error
       const { push } = useNotificationStore.getState()
-      const isAuthError = errorMsg.includes('auth') || errorMsg.includes('token') || errorMsg.includes('401')
       push({
         kind: 'error',
         variant: 'error',
-        title: isAuthError ? 'Session expired' : 'Error creating trade',
-        message: isAuthError
-          ? 'Your session has expired. Please log in again and resubmit your trade.'
+        title: 'Error creating trade',
+        message: errorMsg.includes('timeout')
+          ? 'Request took too long. Please check your connection and try again.'
           : errorMsg,
       })
 
       return null
     }
-
-    const trade = data as Trade
-
-    // Build initial executions from the form entry/exit fields
-    // Long opens with buy; short opens with sell
-    const openAction = input.direction === 'long' ? 'buy' : 'sell'
-    const closeAction = input.direction === 'long' ? 'sell' : 'buy'
-    const openOptionType = deriveExecutionOptionType(input, openAction)
-    const closeOptionType = deriveExecutionOptionType(input, closeAction) ?? openOptionType
-
-    const execsToInsert: object[] = [
-      {
-        trade_id: trade.id,
-        user_id: input.user_id,
-        action: openAction,
-        option_type: openOptionType,
-        datetime: input.entry_date,
-        quantity: input.quantity,
-        price: input.entry_price,
-        fee: input.fees ?? 0,
-      },
-    ]
-
-    // If the trade is already closed/partial at creation time, add closing execution
-    if (input.exit_price && input.exit_date && input.status !== 'open') {
-      execsToInsert.push({
-        trade_id: trade.id,
-        user_id: input.user_id,
-        action: closeAction,
-        option_type: closeOptionType,
-        datetime: input.exit_date,
-        quantity: input.quantity,
-        price: input.exit_price,
-        fee: 0,
-      })
-    }
-
-    const { data: execData } = await db
-      .executions()
-      .insert(execsToInsert)
-      .select()
-
-    const newTrade = applyExecutions({
-      ...trade,
-      has_executions: true,
-      executions: (execData ?? []) as import('@/types').TradeExecution[],
-    })
-
-    set((state) => ({
-      trades: [newTrade, ...state.trades],
-      loading: false,
-    }))
-
-    const { push } = useNotificationStore.getState()
-    push({
-      kind: 'trade_created',
-      variant: 'success',
-      title: 'Trade created',
-      message: `${newTrade.ticker} ${newTrade.direction?.toUpperCase?.() ?? ''} · qty ${newTrade.quantity}`,
-      tradeId: newTrade.id,
-    })
-
-    return newTrade
   },
 
   updateTrade: async (id, input) => {
     set({ loading: true, error: null })
 
-    // Convert undefined values to null so Supabase actually clears them
-    const payload = Object.entries(input).reduce((acc, [key, value]) => {
-      acc[key as keyof typeof input] = value === undefined ? null : value
-      return acc
-    }, {} as Record<keyof typeof input, any>)
+    try {
+      // Convert undefined values to null so Supabase actually clears them
+      const payload = Object.entries(input).reduce((acc, [key, value]) => {
+        acc[key as keyof typeof input] = value === undefined ? null : value
+        return acc
+      }, {} as Record<keyof typeof input, any>)
 
-    const { data, error } = await db
-      .trades()
-      .update({ ...payload, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select(TRADE_SELECT)
-      .single()
+      const { data, error } = await db
+        .trades()
+        .update({ ...payload, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select(TRADE_SELECT)
+        .single()
 
-    if (error) {
-      const errorMsg = error.message || 'Failed to update trade'
+      if (error) {
+        const errorMsg = error.message || 'Failed to update trade'
 
-      if (shouldQueueMutation(errorMsg)) {
-        enqueueOfflineMutation('trade', 'update', { id, input })
-        set((state) => ({
-          trades: state.trades.map((t) => (t.id === id ? ({ ...t, ...input } as Trade) : t)),
-          selectedTrade:
-            state.selectedTrade?.id === id
-              ? ({ ...state.selectedTrade, ...input } as Trade)
-              : state.selectedTrade,
-          loading: false,
-          error: 'Offline: update queued and will sync when online.',
-        }))
-        return get().trades.find((t) => t.id === id) ?? null
+        if (shouldQueueMutation(errorMsg)) {
+          enqueueOfflineMutation('trade', 'update', { id, input })
+          set((state) => ({
+            trades: state.trades.map((t) => (t.id === id ? ({ ...t, ...input } as Trade) : t)),
+            selectedTrade:
+              state.selectedTrade?.id === id
+                ? ({ ...state.selectedTrade, ...input } as Trade)
+                : state.selectedTrade,
+            loading: false,
+            error: 'Offline: update queued and will sync when online.',
+          }))
+          return get().trades.find((t) => t.id === id) ?? null
+        }
+
+        set({ error: errorMsg, loading: false })
+
+        // Notify user and suggest re-login if auth error
+        const { push } = useNotificationStore.getState()
+        const isAuthError = errorMsg.includes('auth') || errorMsg.includes('token') || errorMsg.includes('401')
+        push({
+          kind: 'error',
+          variant: 'error',
+          title: isAuthError ? 'Session expired' : 'Error updating trade',
+          message: isAuthError
+            ? 'Your session has expired. Please log in again and resubmit your changes.'
+            : errorMsg,
+        })
+
+        return null
       }
 
+      const updated = applyExecutions(data as Trade)
+      set((state) => ({
+        trades: state.trades.map((t) => (t.id === id ? updated : t)),
+        selectedTrade: state.selectedTrade?.id === id ? updated : state.selectedTrade,
+        loading: false,
+      }))
+
+      const { push } = useNotificationStore.getState()
+      push({
+        kind: 'trade_updated',
+        variant: 'success',
+        title: 'Trade updated',
+        message: `${updated.ticker} · status ${updated.status}`,
+        tradeId: updated.id,
+      })
+
+      return updated
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error updating trade'
       set({ error: errorMsg, loading: false })
 
-      // Notify user and suggest re-login if auth error
       const { push } = useNotificationStore.getState()
-      const isAuthError = errorMsg.includes('auth') || errorMsg.includes('token') || errorMsg.includes('401')
       push({
         kind: 'error',
         variant: 'error',
-        title: isAuthError ? 'Session expired' : 'Error updating trade',
-        message: isAuthError
-          ? 'Your session has expired. Please log in again and resubmit your changes.'
+        title: 'Error updating trade',
+        message: errorMsg.includes('timeout')
+          ? 'Request took too long. Please check your connection and try again.'
           : errorMsg,
       })
 
       return null
     }
-
-    const updated = applyExecutions(data as Trade)
-    set((state) => ({
-      trades: state.trades.map((t) => (t.id === id ? updated : t)),
-      selectedTrade: state.selectedTrade?.id === id ? updated : state.selectedTrade,
-      loading: false,
-    }))
-
-    const { push } = useNotificationStore.getState()
-    push({
-      kind: 'trade_updated',
-      variant: 'success',
-      title: 'Trade updated',
-      message: `${updated.ticker} · status ${updated.status}`,
-      tradeId: updated.id,
-    })
-
-    return updated
   },
 
   deleteTrade: async (id) => {
@@ -364,41 +398,65 @@ export const useTradeStore = create<TradeState>((set, get) => ({
   setSelectedTrade: (trade) => set({ selectedTrade: trade }),
 
   uploadScreenshot: async (userId, tradeId, file, label) => {
-    const result = await storage.uploadScreenshot(userId, tradeId, file, label)
-    if (!result) return false
+    try {
+      const result = await storage.uploadScreenshot(userId, tradeId, file, label)
 
-    const { data, error } = await db
-      .screenshots()
-      .insert({
-        trade_id: tradeId,
-        user_id: userId,
-        storage_path: result.path,
-        url: result.url,
-        label: label ?? null,
+      if (!result) return false
+
+      const { data, error } = await db
+        .screenshots()
+        .insert({
+          trade_id: tradeId,
+          user_id: userId,
+          storage_path: result.path,
+          url: result.url,
+          label: label ?? null,
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('[uploadScreenshot] Database insert error:', error)
+        return false
+      }
+
+      set((state) => ({
+        trades: state.trades.map((t) =>
+          t.id === tradeId
+            ? { ...t, screenshots: [...(t.screenshots ?? []), data] }
+            : t
+        ),
+      }))
+
+      const { push } = useNotificationStore.getState()
+      push({
+        kind: 'screenshot_uploaded',
+        variant: 'success',
+        title: 'Screenshot uploaded',
+        message: label ? `${label} · attached to trade` : 'Screenshot attached to trade',
+        tradeId,
       })
-      .select()
-      .single()
 
-    if (error) return false
+      return true
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
 
-    set((state) => ({
-      trades: state.trades.map((t) =>
-        t.id === tradeId
-          ? { ...t, screenshots: [...(t.screenshots ?? []), data] }
-          : t
-      ),
-    }))
+      set(() => ({
+        error: `Screenshot upload failed: ${message}`
+      }))
 
-    const { push } = useNotificationStore.getState()
-    push({
-      kind: 'screenshot_uploaded',
-      variant: 'success',
-      title: 'Screenshot uploaded',
-      message: label ? `${label} · attached to trade` : 'Screenshot attached to trade',
-      tradeId,
-    })
+      // Also show notification
+      const { push } = useNotificationStore.getState()
+      push({
+        kind: 'error',
+        variant: 'error',
+        title: 'Upload failed',
+        message: message,
+        tradeId,
+      })
 
-    return true
+      return false
+    }
   },
 
   deleteScreenshot: async (screenshotId, storagePath) => {

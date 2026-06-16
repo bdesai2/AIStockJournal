@@ -143,23 +143,59 @@ export function TradeDetailPage() {
   }
 
   const handleScreenshotUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!user?.id) return
-    const files = Array.from(e.target.files ?? [])
-    if (!files.length) return
+    console.log('[Screenshot] 1. onChange event fired', { timestamp: new Date().toISOString() })
 
+    if (!user?.id) {
+      console.error('[Screenshot] 2. ERROR: No user ID found')
+      setUploadError('User ID not found')
+      return
+    }
+
+    const files = Array.from(e.target.files ?? [])
+    console.log('[Screenshot] 3. Files selected:', { count: files.length, files: files.map(f => ({ name: f.name, size: f.size, type: f.type })) })
+
+    if (!files.length) {
+      console.log('[Screenshot] 4. No files selected, exiting')
+      return
+    }
+
+    console.log('[Screenshot] 5. Starting upload process', { tradeId: trade.id, userId: user.id })
     setUploading(true)
     setUploadError(null)
 
-    for (const file of files) {
-      const ok = await uploadScreenshot(user.id, trade.id, file)
-      if (!ok) {
-        setUploadError('Failed to upload one or more screenshots. Please try again.')
-        break
-      }
-    }
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        console.log(`[Screenshot] 6.${i} Starting upload for file:`, { name: file.name, size: file.size, index: i + 1, total: files.length })
 
-    setUploading(false)
-    e.target.value = ''
+        const startTime = Date.now()
+        const ok = await uploadScreenshot(user.id, trade.id, file)
+        const duration = Date.now() - startTime
+
+        console.log(`[Screenshot] 7.${i} Upload completed:`, { name: file.name, ok, duration: `${duration}ms` })
+
+        if (!ok) {
+          console.error(`[Screenshot] 8.${i} Upload failed for ${file.name}, stopping batch`)
+          setUploadError(`Failed to upload ${file.name}. Check browser console for details.`)
+          break
+        }
+        console.log(`[Screenshot] 9.${i} Upload successful for ${file.name}`)
+      }
+
+      if (files.length > 0) {
+        console.log('[Screenshot] 10. All uploads completed, clearing input')
+      }
+    } catch (err) {
+      console.error('[Screenshot] 11. Unexpected error caught:', err, {
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : 'no stack'
+      })
+      setUploadError(err instanceof Error ? err.message : 'Upload failed. Check browser console.')
+    } finally {
+      console.log('[Screenshot] 12. Finally block - setting uploading=false and clearing input')
+      setUploading(false)
+      e.target.value = ''
+    }
   }
 
   const handleScreenshotDelete = async (screenshotId: string, storagePath: string) => {

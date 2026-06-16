@@ -26,7 +26,6 @@ import {
 import { useAuthStore } from '@/store/authStore'
 import { useTradeStore } from '@/store/tradeStore'
 import { useJournalStore } from '@/store/journalStore'
-import { auth } from '@/lib/supabase'
 import { calcExecutionsSummary, fmt, pnlColor } from '@/lib/tradeUtils'
 import { exportMonthlyJournalReport } from '@/lib/reportExport'
 import type { DailyJournal, Trade } from '@/types'
@@ -67,6 +66,7 @@ export function JournalPage() {
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [form, setForm] = useState({
     pre_market_notes: '',
     post_market_notes: '',
@@ -93,7 +93,6 @@ export function JournalPage() {
 
     const loadJournals = async () => {
       if (!user?.id) return
-      await auth.ensureActiveSession()
       if (cancelled) return
       await fetchJournalsForMonth(user.id, year, month)
     }
@@ -108,9 +107,7 @@ export function JournalPage() {
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState !== 'visible' || !user?.id) return
-      void auth.ensureActiveSession().then(() => {
-        void fetchJournalsForMonth(user.id, year, month)
-      })
+      void fetchJournalsForMonth(user.id, year, month)
     }
 
     document.addEventListener('visibilitychange', onVisibilityChange)
@@ -264,19 +261,29 @@ export function JournalPage() {
   const handleSave = async () => {
     if (!user?.id || !selectedDate) return
     setSaving(true)
-    await upsertJournal(user.id, selectedDate, {
-      pre_market_notes: form.pre_market_notes || undefined,
-      post_market_notes: form.post_market_notes || undefined,
-      market_mood: form.market_mood ?? undefined,
-      personal_mood: form.personal_mood
-        ? (form.personal_mood as DailyJournal['personal_mood'])
-        : undefined,
-      goals: form.goals_text
-        ? form.goals_text.split('\n').filter((g) => g.trim())
-        : [],
-      reviewed_rules: form.reviewed_rules,
-    })
-    setSaving(false)
+    setSaveError(null)
+    const timeout = (ms: number) =>
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Request timed out. Check your connection and try again.')), ms)
+      )
+    try {
+      await Promise.race([upsertJournal(user.id, selectedDate, {
+        pre_market_notes: form.pre_market_notes || undefined,
+        post_market_notes: form.post_market_notes || undefined,
+        market_mood: form.market_mood ?? undefined,
+        personal_mood: form.personal_mood
+          ? (form.personal_mood as DailyJournal['personal_mood'])
+          : undefined,
+        goals: form.goals_text
+          ? form.goals_text.split('\n').filter((g) => g.trim())
+          : [],
+        reviewed_rules: form.reviewed_rules,
+      }), timeout(20_000)])
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save journal entry. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const prevMonth = () => {
@@ -681,6 +688,11 @@ export function JournalPage() {
 
                 {/* Save */}
                 <div className="pt-2 pb-1 border-t border-border/60 lg:col-span-2">
+                  {saveError && (
+                    <p className="text-xs text-destructive bg-destructive/10 border border-destructive/30 px-2 py-1.5 rounded mb-2">
+                      {saveError}
+                    </p>
+                  )}
                   <button
                     onClick={handleSave}
                     disabled={saving}

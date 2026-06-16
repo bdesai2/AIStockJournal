@@ -11,7 +11,6 @@ import { useStrategyStore } from '@/store/strategyStore'
 import { useNotificationStore } from '@/store/notificationStore'
 import { STRATEGY_TAG_LABELS, calcExitPriceFromExecutions } from '@/lib/tradeUtils'
 import { optimizeImageForUpload } from '@/lib/imageOptimization'
-import { auth } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import type { CreateTradeInput, StrategyTag } from '@/types'
 
@@ -395,6 +394,8 @@ export function NewTradePage() {
   }
 
   const onSubmit = async (data: TradeFormData) => {
+    console.log('✅ onSubmit fired', { tradeId: id, isEdit, timestamp: new Date().toISOString() })
+
     if (saveBlockedReason) {
       pushNotification({
         kind: 'error',
@@ -405,9 +406,8 @@ export function NewTradePage() {
       return
     }
 
-    const session = await auth.ensureActiveSession()
-    const currentUserId = session?.user?.id
-
+    // Use user already in memory — avoid calling supabase.auth.getSession() which can hang
+    const currentUserId = user?.id
     if (!currentUserId || !selectedAccountId) {
       pushNotification({
         kind: 'error',
@@ -418,7 +418,7 @@ export function NewTradePage() {
       return
     }
 
-    console.log('✅ onSubmit fired', data)
+    console.log('✅ User verified, building payload', { currentUserId, selectedAccountId })
 
     // Auto-fill exit_price from executions if status is closed and field is empty
     let exitPrice = data.exit_price
@@ -452,13 +452,34 @@ export function NewTradePage() {
       primary_strategy_name: data.primary_strategy_name || undefined,
     }
 
+    const timeout = (ms: number) =>
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Request timed out. Check your connection and try again.')), ms)
+      )
+
     if (isEdit && id) {
-      const updated = await updateTrade(id, basePayload)
-      if (updated) {
-        for (const file of pendingFiles) {
-          await uploadScreenshot(currentUserId, id, file)
+      try {
+        const updated = await Promise.race([updateTrade(id, basePayload), timeout(20_000)])
+        if (updated) {
+          for (const file of pendingFiles) {
+            await uploadScreenshot(currentUserId, id, file)
+          }
+          navigate(`/trades/${id}`)
+        } else {
+          pushNotification({
+            kind: 'error',
+            variant: 'error',
+            title: 'Trade not saved',
+            message: 'The update failed. Please try again.',
+          })
         }
-        navigate(`/trades/${id}`)
+      } catch (err) {
+        pushNotification({
+          kind: 'error',
+          variant: 'error',
+          title: 'Trade not saved',
+          message: err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.',
+        })
       }
     } else {
       const createPayload = {
@@ -466,12 +487,28 @@ export function NewTradePage() {
         user_id: currentUserId,
         account_id: selectedAccountId,
       } as CreateTradeInput & { user_id: string; account_id: string }
-      const created = await createTrade(createPayload)
-      if (created) {
-        for (const file of pendingFiles) {
-          await uploadScreenshot(currentUserId, created.id, file)
+      try {
+        const created = await Promise.race([createTrade(createPayload), timeout(20_000)])
+        if (created) {
+          for (const file of pendingFiles) {
+            await uploadScreenshot(currentUserId, created.id, file)
+          }
+          navigate(`/trades/${created.id}`)
+        } else {
+          pushNotification({
+            kind: 'error',
+            variant: 'error',
+            title: 'Trade not saved',
+            message: 'The save failed. Please try again.',
+          })
         }
-        navigate(`/trades/${created.id}`)
+      } catch (err) {
+        pushNotification({
+          kind: 'error',
+          variant: 'error',
+          title: 'Trade not saved',
+          message: err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.',
+        })
       }
     }
   }
@@ -683,11 +720,31 @@ export function NewTradePage() {
                       <option value="sell">Sell</option>
                     </select>
                   </Field>
-                  <Field label="Type">
-                    <select {...register(`option_legs.${i}.option_type`)} className={selectClass}>
-                      <option value="call">Call</option>
-                      <option value="put">Put</option>
-                    </select>
+                  <Field label="Type (Call/Put)">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setValue(`option_legs.${i}.option_type`, 'call')}
+                        className={`flex-1 px-3 py-2 rounded font-mono text-sm transition-colors ${
+                          watch(`option_legs.${i}.option_type`) === 'call'
+                            ? 'bg-green-600 text-white'
+                            : 'bg-border/50 text-muted-foreground hover:bg-border'
+                        }`}
+                      >
+                        ☎️ CALL
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setValue(`option_legs.${i}.option_type`, 'put')}
+                        className={`flex-1 px-3 py-2 rounded font-mono text-sm transition-colors ${
+                          watch(`option_legs.${i}.option_type`) === 'put'
+                            ? 'bg-red-600 text-white'
+                            : 'bg-border/50 text-muted-foreground hover:bg-border'
+                        }`}
+                      >
+                        📉 PUT
+                      </button>
+                    </div>
                   </Field>
                   <Field label="Strike" error={errors.option_legs?.[i]?.strike?.message}>
                     <input {...register(`option_legs.${i}.strike`)} type="number" step="0.5" inputMode="decimal" placeholder="150.00" className={inputClass} />

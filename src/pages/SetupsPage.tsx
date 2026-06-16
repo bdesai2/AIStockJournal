@@ -6,7 +6,6 @@ import { useSetupStore } from '@/store/setupStore'
 import { useStrategyStore } from '@/store/strategyStore'
 import { SetupRow } from '@/components/setups/SetupRow'
 import { STRATEGY_TAG_LABELS, fmt } from '@/lib/tradeUtils'
-import { auth } from '@/lib/supabase'
 import type { Setup, SetupProbability, StrategyTag, TradeDirection } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -188,8 +187,7 @@ export function SetupsPage() {
     if (!form.name.trim()) return
     if (!form.ticker.trim()) return
 
-    const session = await auth.ensureActiveSession()
-    const currentUserId = session?.user?.id
+    const currentUserId = user?.id
 
     if (!currentUserId) {
       pushNotification({
